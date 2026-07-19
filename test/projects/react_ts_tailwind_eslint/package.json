@@ -1,0 +1,20 @@
+{
+  "name": "eglotx-react-ts-tailwind-eslint-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "tailwindcss": "^4.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/language-server": "^0.14.0",
+    "@types/react": "^19.0.0",
+    "eslint": "^10.0.0",
+    "typescript": "^6.0.0",
+    "typescript-language-server": "^5.0.0",
+    "vscode-langservers-extracted": "^4.10.0"
+  }
+}

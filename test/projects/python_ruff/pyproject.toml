@@ -1,0 +1,6 @@
+[project]
+name = "eglotx-python-ruff-fixture"
+version = "0.0.0"
+
+[tool.ruff]
+line-length = 88

@@ -1,0 +1,17 @@
+*.elc
+*.eln
+*-autoloads.el
+/.benchmarks/
+/.dir-locals-2.el
+/.elpa/
+/.packages/
+/.tmp/
+/test/projects/*/node_modules/
+/test/projects/*/package-lock.json
+/test/projects/*/pnpm-lock.yaml
+/test/projects/*/yarn.lock
+/test/projects/*/bun.lock
+/test/projects/*/bun.lockb
+*~
+\#*\#
+.\#*
