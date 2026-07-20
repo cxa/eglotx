@@ -6,6 +6,8 @@ All notable changes to Eglotx are documented in this file. The project uses
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-07-20
+
 ### Added
 
 - Expand the bundled JavaScript/TypeScript cohort to common React modes from
@@ -105,6 +107,7 @@ All notable changes to Eglotx are documented in this file. The project uses
   Tailwind-to-Corfu E2E targets.
 - CI checks on Emacs 29.4, 30.2, and the current snapshot build.
 
-[Unreleased]: https://github.com/cxa/eglotx/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/cxa/eglotx/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/cxa/eglotx/releases/tag/v0.1.2
 [0.1.1]: https://github.com/cxa/eglotx/releases/tag/v0.1.1
 [0.1.0]: https://github.com/cxa/eglotx/releases/tag/v0.1.0
