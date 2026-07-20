@@ -1,8 +1,9 @@
 # Eglotx public API
 
-This page describes the supported Emacs Lisp integration surface.  Symbols
-containing `eglotx--` are private.  Construct `eglotx-server` instances through
-`eglotx-contact`; class slots and internal records are not stable API.
+This page is the supported Emacs Lisp integration surface.  Only symbols
+documented here are stable API.  Package-local names containing `--`, unload
+hooks, class slots, and internal records are private.  Construct
+`eglotx-server` instances through `eglotx-contact`.
 
 ## Loading
 
@@ -49,15 +50,26 @@ does not remove the facade.
 | `:settings` | `nil` | JSON-shaped overlay or transformation function applied to every `workspace/configuration` result item and to `didChangeConfiguration.params.settings` for this backend. |
 | `:environment` | `nil` | Alist of string variable names to string values, scoped to this backend's process creation. |
 | `:only` | `nil` | List/vector of allowed LSP method names. `nil` allows negotiated methods; an explicit empty vector allows lifecycle methods only. Lifecycle methods are never filtered. |
-| `:languages` | `nil` | List of accepted LSP language ID strings. Known document traffic and open-document diagnostics are restricted to this set; `nil` accepts the facade cohort. An unopened URI remains eligible because its language is unknown. |
+| `:languages` | `nil` | List of accepted LSP language ID strings. Known document traffic and open-document diagnostics are restricted to this set; `nil` accepts the facade cohort. Diagnostics for an unopened URI remain eligible because its language is unknown. An owned follow-up is eligible only for its recorded backend. |
 | `:notification-handlers` | `nil` | Alist from method names to `(lambda (facade source-backend params) ...)`. A non-nil return consumes the notification; otherwise normal forwarding continues. Handlers run on deferred work, outside process filters. |
 | `:request-timeout` | `eglotx-request-timeout` | Positive seconds or `nil`. One unbounded target makes the aggregate deadline unbounded; otherwise the largest target timeout permits every concurrent leg to finish. |
 
 Static JSON overlays recursively merge keyword-plist objects without mutating
 either input; a non-object value replaces the base.  A transformation function
-receives a recursively detached base value and its return value becomes the
-backend value, including a deliberate nil return.  A nil descriptor value
-leaves the client value unchanged.
+receives a recursively detached base value.  A nil settings transform is
+forwarded as the backend settings value.  For initialization options, a nil
+transform remains explicit only when the client supplied the field; otherwise
+the field stays absent.  A nil descriptor value leaves the client value
+unchanged.
+
+## Conditions
+
+- `eglotx-error` is the parent condition for Eglotx-specific failures.
+- `eglotx-configuration-error` reports an invalid manual descriptor or a preset
+  whose required components and preserved fallback are both unavailable.
+- `eglotx-content-modified` is raised internally when a document changes while
+  a generation-sensitive request is in flight; the facade maps it to the LSP
+  `ContentModified` error.
 
 ## `eglotx-status`
 
@@ -133,10 +145,6 @@ autoloaded contacts are `eglotx-presets-svelte-contact`,
 `eglotx-presets-go-contact`, and `eglotx-presets-ruby-contact`.
 `eglotx-presets-typescript-contact` is also public for a manual generic JS/TS
 mapping without the Angular detector.
-
-The Astro catalog entry maps `astro-ts-mode` and legacy `astro-mode` to the
-exact `astro` language ID and is ordered before the HTML entry.  It does not
-claim generic `web-mode`.
 
 Each contact accepts optional `INTERACTIVE` and `PROJECT` arguments.  `PROJECT`
 defaults to the current project.  Missing required components first delegate

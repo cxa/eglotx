@@ -1,7 +1,7 @@
-# Preset E2E projects
+# Preset fixture projects
 
 These deliberately small projects isolate representative complementary
-backends:
+backends for hermetic contact tests and opt-in real-server E2E tests:
 
 - `react_ts_tailwind_eslint` activates TypeScript, Tailwind CSS v4, and ESLint.
 - `react_ts_tailwind_biome` activates TypeScript, Tailwind CSS v4, and Biome.
@@ -22,7 +22,8 @@ backends:
 - `ruby_sorbet` activates Ruby LSP plus Sorbet.
 
 The repository ignores fixture lockfiles and generated installations; a local
-E2E setup may create both.  The React E2E targets accept project-local
+E2E setup may create both.  Python, Go, and Ruby currently provide hermetic
+fixture coverage only.  The React E2E targets accept project-local
 executables or servers on `PATH`.  The Vue E2E target deliberately requires
 project-local `vue-language-server`,
 `typescript-language-server`, `vscode-eslint-language-server`, and
@@ -37,8 +38,11 @@ intent, command, and cohort tests reproducible without making the default suite
 depend on external toolchains.
 
 ```sh
+make check
 make test-presets-e2e
-make test-astro-eslint-e2e
-make test-astro-biome-e2e
-make test-astro-e2e
 ```
+
+The aggregate E2E target includes the generic Web, Vue, Svelte, and Astro
+scenarios.  See the preset
+[verification matrix](../../docs/presets.md#verification-matrix) for individual
+targets and their assertions.

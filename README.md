@@ -25,13 +25,13 @@ through a shell.
 
 ### `use-package` with `:vc`
 
-Install the latest released version with `package-vc` and enable the preset
+Install the current stable release with `package-vc` and enable the preset
 catalog:
 
 ```elisp
 (use-package eglotx
   :vc (:url "https://github.com/cxa/eglotx.git"
-       :rev :last-release)
+       :rev "v0.1.0")
   :demand t
   :config
   (require 'eglotx-presets)
@@ -39,9 +39,11 @@ catalog:
 ```
 
 The declaration uses `eglotx`, whose main file carries the package metadata;
-`eglotx-presets` is a secondary feature in the same checkout.  Replace
-`:last-release` with `"v0.1.0"` to pin this release exactly, or with `:newest`
-to follow the development branch.
+`eglotx-presets` is a secondary feature in the same checkout.  Replace the
+explicit tag with `:last-release` to follow future releases, or with `:newest`
+to follow the development branch.  This README describes `main`; features
+listed under [Unreleased](CHANGELOG.md) require `:newest` until the next
+release.
 
 The built-in `use-package` supports `:vc` on Emacs 30.1 and newer.  Emacs 29's
 built-in version does not; either update `use-package` from GNU ELPA or install
@@ -52,7 +54,7 @@ the VC package once before using an ordinary declaration:
 (unless (package-installed-p 'eglotx)
   (package-vc-install
    '(eglotx :url "https://github.com/cxa/eglotx.git")
-   :last-release))
+   "v0.1.0"))
 ```
 
 ### Source checkout
@@ -69,50 +71,35 @@ versions are older than the declared minimums.  Then put the checkout on
 
 ## Preset behavior
 
-The global mode installs project-aware contacts for Svelte and Astro
-components, Vue SFCs, one Angular-aware JavaScript/TypeScript cohort, HTML,
-CSS/SCSS/Less, JSON/JSONC, GraphQL, Python, the complete Go
-source/module/workspace cohort, and Ruby.
-Most contacts choose one structural primary and add only intent-backed
-complementary servers such as Ruff, GolangCI, Sorbet, ESLint, Tailwind CSS,
-Biome, GraphQL, or Angular.  Vue is the deliberate exception: VLS, TLS, and
-`@vue/typescript-plugin` form one indivisible required stack.  Discovery
-prefers the nearest executable in the ecosystem's project directory
+The global mode covers Svelte, Astro, Vue, JavaScript/TypeScript, HTML,
+CSS/SCSS/Less, JSON/JSONC, GraphQL, Python, Go source/module/workspace files,
+and Ruby.  A recipe normally selects one structural primary and adds only
+intent-backed complementary servers such as Ruff, GolangCI, Sorbet, ESLint,
+Tailwind CSS, Biome, GraphQL, or Angular.  Embedded component recipes avoid
+duplicating services already supplied by their framework server; Vue keeps its
+required VLS/TLS/plugin stack because that is an upstream protocol requirement.
+
+Discovery prefers the nearest executable in the ecosystem's project directory
 (`node_modules/.bin`, a Python virtual environment, a Ruby binstub directory,
-or a bounded Go project bin directory) before falling back to PATH.
-
-For `.svelte` buffers, `svelteserver` is the sole structural primary because it
-already embeds Svelte, TypeScript/JavaScript, HTML, and CSS support.  The preset
-does not duplicate those roles with TypeScript, HTML, or CSS Language Server;
-it adds only intent-gated ESLint, Tailwind CSS, Biome 2.3+, and GraphQL.  Biome
-becomes the formatter only when the project explicitly enables its experimental
-full HTML support.  SvelteKit needs no separate LSP process.
-
-For `.astro` buffers, project-local-or-PATH `astro-ls --stdio` is likewise the
-sole structural primary.  Both `astro-ts-mode` and legacy `astro-mode` use the
-exact `astro` language ID; the preset does not send the document to separate
-TypeScript, HTML, CSS, Vue, or Svelte servers.  Astro Language Server requires
-the nearest validated project `node_modules/typescript/lib/` SDK, which the
-preset passes through `initializationOptions.typescript.tsdk`.  Optional
-ESLint, Tailwind CSS, Biome 2.3+, and GraphQL children require their usual
-strong project signals and are restricted to Astro documents.
+or a bounded Go project bin directory) before falling back to PATH.  Astro also
+requires a validated project TypeScript SDK.  Exact modes, language IDs,
+commands, intent gates, priorities, and formatter ownership live only in the
+authoritative [preset catalog](docs/presets.md).
 
 Start the session normally with `M-x eglot` or `eglot-ensure`.  A bundled preset
 contact that resolves to one backend returns an ordinary Eglot contact, so
 single-server projects skip the multiplexer overhead; required static
 initialization options such as Astro's TypeScript SDK are retained on that
 fast path.  Optional add-ons are not enabled just because a matching executable
-happens to be on PATH: they also
-need a strong project signal such as a supported config, manifest declaration,
-or project-local executable.  Embedded Svelte/Astro/Vue ESLint is stricter:
-its project-local binary may come from a shared HTML/CSS package, so an ESLint
-config or dependency is still required.
+happens to be on PATH: they also need a strong project signal such as a
+supported config, manifest declaration, or project-local executable.
+Recipe-specific exceptions are documented in the preset catalog.
 
 Enabling the mode snapshots the matching contacts that already precede the
-bundled catalog.  If a recipe cannot resolve its supported required primary or
-required project configuration, it delegates to that earlier static or
-functional Eglot contact instead of shadowing it.  Disabling the mode removes
-only its owned entries and clears the fallback snapshot.
+bundled catalog.  If a recipe cannot resolve a required component or project
+configuration, it delegates to that earlier static or functional Eglot contact
+instead of shadowing it.  Disabling the mode removes only its owned entries and
+clears the fallback snapshot.
 
 The presets and their bounded discovery engine are deliberately separate from
 the protocol core: requiring `eglotx` alone never installs language contacts
@@ -233,9 +220,6 @@ make compile    # byte-compile with warnings promoted to errors
 make test       # run the ERT integration suite
 make check      # clean, compile, and test
 make test-presets-e2e # opt-in real ESLint/Biome/Vue/Svelte/Astro smoke tests
-make test-vue-e2e # real Vue/TypeScript bridge + ESLint + Tailwind smoke test
-make test-svelte-e2e # real Svelte + ESLint/Biome + Tailwind smoke tests
-make test-astro-e2e # real Astro + ESLint/Biome + Tailwind smoke tests
 make test-corfu-e2e # real Tailwind -> Eglot -> Orderless -> Corfu insertion
 make benchmark  # run repeatable protocol hot-path microbenchmarks
 ```
@@ -248,7 +232,7 @@ same-machine baseline.
 
 `make benchmark` measures route selection, UTF-16 change application,
 capability combination, completion merge/ownership, diagnostic attribution,
-and the 11,509-item Tailwind shared-default path.  CI runs `make check` on
+and a large Tailwind shared-default path.  CI runs `make check` on
 Emacs 29.4, 30.2, and `snapshot`; it does not run real-server E2E targets,
 benchmarks, or machine-specific latency gates.
 

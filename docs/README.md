@@ -13,14 +13,18 @@ competing descriptions of the project.
 | [`architecture.md`](architecture.md) | How the current implementation satisfies the specification.  Private data structures and algorithms are descriptive, not public API. |
 | [`releasing.md`](releasing.md) | Maintainer checklist for versioning, tagging, pushing, and creating a GitHub release. |
 | [`../CHANGELOG.md`](../CHANGELOG.md) | User-visible changes by release; it is not a second feature specification. |
-| [`research/`](research/) | Dated, commit-pinned decision inputs.  Recommendations and implementation snapshots there are historical unless promoted into the specification or preset catalog. |
+| [`research/`](research/) | Dated, source-linked decision inputs.  Recommendations and local implementation snapshots there are historical unless promoted into the specification or preset catalog. |
 
 When documents disagree, public Elisp docstrings and current code define what
-the package accepts, while `spec.md` and its tests define intended observable
-behavior.  A behavior change should update the code, tests, specification, and
-API or preset reference in the same change.  Research files should retain their
-historical claims and instead receive a status note pointing to the resulting
-current behavior.
+the package accepts, `spec.md` and its tests define intended facade behavior,
+and `presets.md` defines current recipe policy.  A behavior change should
+update the code, tests, specification, and API or preset reference in the same
+change.  Research files should retain their historical claims and instead
+receive a status note pointing to the resulting current behavior.
+
+The README in `main` describes the development branch.  Its stable installation
+example remains pinned to the latest release; `CHANGELOG.md` identifies features
+that still require `:rev :newest`.
 
 The package header and latest release entry must use the same version.  New
 user-visible work is recorded under `Unreleased` until the next version is

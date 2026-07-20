@@ -114,8 +114,13 @@ release-check:
 	  { echo "eglotx.el Version header does not match" >&2; exit 1; }
 	@grep -Fqx '## [$(RELEASE_VERSION)] - $(RELEASE_DATE)' CHANGELOG.md || \
 	  { echo "CHANGELOG.md release heading does not match" >&2; exit 1; }
-	@grep -Fq '"v$(RELEASE_VERSION)"' README.md || \
-	  { echo "README.md pinned release reference does not match" >&2; exit 1; }
+	@grep -Fq ':rev "v$(RELEASE_VERSION)"' README.md || \
+	  { echo "README.md use-package release reference does not match" >&2; \
+	    exit 1; }
+	@sed -n '/(package-vc-install/,/))/p' README.md | \
+	  grep -Fq '"v$(RELEASE_VERSION)"' || \
+	  { echo "README.md package-vc release reference does not match" >&2; \
+	    exit 1; }
 
 clean:
 	$(RM) $(LISP_FILES:.el=.elc) test/*.elc benchmark/*.elc

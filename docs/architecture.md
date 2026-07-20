@@ -4,7 +4,7 @@ This document defines the implementation boundaries that keep Eglotx fast,
 deterministic, and compatible with Eglot. `docs/spec.md` is the behavioral
 contract; this document explains how the implementation satisfies it. Public
 arguments and customization live in [`api.md`](api.md), and the documentation
-authority map is [`README.md`](README.md).
+authority map is [`docs/README.md`](README.md).
 
 ## Process topology
 
@@ -39,7 +39,7 @@ layer above the facade:
 ```mermaid
 flowchart LR
     P["project files + executable paths"] -->|"new-session cold path"| R["bounded preset context + resolver"]
-    R -->|"2-6 resolved backends"| C["eglotx-contact"]
+    R -->|"2+ resolved backends"| C["eglotx-contact"]
     R -->|"1 resolved backend"| E["ordinary Eglot contact"]
     C --> F["eglotx.el facade core"]
 ```
@@ -49,28 +49,21 @@ never requires presets. The resolver uses only the public `eglotx-contact`
 seam. Language names, package manifests, `node_modules`, server settings, and
 mutation of `eglot-server-programs` are forbidden from the core.
 
-The global preset mode owns exact `eglot-server-programs` entries for Svelte,
-Astro, Vue, one Angular-aware JS/TS cohort, HTML, CSS/SCSS/Less, JSON/JSONC,
-GraphQL, Python, the complete Go source/module/workspace cohort, and Ruby.
-Eglot invokes
-only the selected contact when choosing a server for a new project session. Its
-contact-lifetime context walks at most 32 nearest ancestors plus a retained
-project root, caps individual and aggregate metadata reads, caches positive
-and negative probes, and retains at most 64 keyword-bearing candidates from
-one non-recursive local listing. Remote roots skip marker listings to avoid
-TRAMP's full-directory transfer. The resolver returns absolute argv and never
-enters a JSON-RPC callback or protocol hot path. The resolved contact is stable
-for the session; an explicit shutdown followed by a new start reruns discovery
-after dependencies change.
+The exact contact catalog lives in [`presets.md`](presets.md).  Eglot invokes
+only the selected contact when choosing a server for a new project session.
+Its contact-lifetime context walks at most 32 nearest ancestors plus a retained
+project root, caps individual and aggregate metadata reads, caches repeated
+fixed-file and executable probes, and retains at most 64 keyword-bearing
+candidates from one non-recursive local listing.  Remote roots skip marker
+listings to avoid TRAMP's full-directory transfer.  The resolver returns
+absolute argv and never enters a JSON-RPC callback or protocol hot path.  The
+resolved contact is stable for the session; an explicit shutdown followed by a
+new start reruns discovery after dependencies change.
 
-Svelte, Astro, and Vue share one presets-layer embedded-Web add-on resolver for
-Biome, ESLint, Tailwind, and GraphQL intent, executable, language, and method
-policy.  Their structural primaries remain different: Svelte Language Server
-and Astro Language Server each embed their HTML/CSS/JS/TS services and need no
-sibling structural server, while Vue's upstream protocol requires the separate
-VLS/TLS adapter described below.  Astro discovery also validates the nearest
-project TypeScript SDK before constructing its contact.  No Svelte or Astro
-package name, command, or capability rule enters the facade core.
+Recipes may share presets-layer resolvers for executable, intent, language, and
+method policy.  Required companion stacks and private adapters remain recipe
+policy.  No server name, package name, command, or capability rule enters the
+facade core.
 
 The one-backend materializer normally copies the backend argv directly into an
 ordinary Eglot contact.  If a descriptor has static initialization options, it
@@ -81,7 +74,7 @@ rejected on the one-backend path rather than being invoked with Eglot's
 different contact-function contract.
 
 Mode installation snapshots the contacts that precede the bundled entries. If
-a recipe cannot resolve its supported required primary or required config, it
+a recipe cannot resolve a required primary, companion, or configuration, it
 delegates to the matching saved static contact or calls the saved functional
 contact with its supported one- or two-argument arity. Thus enabling the broad
 catalog does not turn an existing usable mapping into a missing-server error.
@@ -144,23 +137,26 @@ traversing the small configured backend list.
 Capability values, backend language membership, and namespace ownership are
 direct lookups; no claim is made that every routing decision is precomputed.
 
-Notifications use one of five policies:
+Client notifications use method-specific policies:
 
-- lifecycle notifications go to every live backend;
-- document notifications go to the backends that own the document and are
-  adapted to each negotiated synchronization kind;
-- watched-file notifications go only to backends with matching live dynamic
-  registrations;
-- capability-specific notifications go only to capable, allowed backends; and
-- an explicitly declared backend notification handler may consume one private
-  method on the same deferred FIFO used for ordered notifications.
+- document synchronization goes to allowed document backends and is adapted to
+  each negotiated synchronization kind;
+- watched-file changes go only to matching live registration owners;
+- workspace file operations and notebook notifications go to their selected
+  capable provider;
+- cancellation and progress cancellation return to their exact request or
+  token owner; and
+- initialization, configuration, workspace-folder, and otherwise unclassified
+  notifications use a filtered broadcast to eligible live backends.
 
 Requests use one of five policies:
 
 - **aggregate**: run all capable backends concurrently and merge by descending
   priority, breaking ties by declaration order;
 - **singleton**: use the first capable backend in that same effective order;
-- **owned**: route to the backend encoded by a result ownership token;
+- **owned**: route a recognized facade token to its backend, reject a stale
+  token from the current facade session, and otherwise fall back to the first
+  eligible backend for an unowned standard item;
 - **registered**: return an unknown dynamically registered method to its owner;
 - **fallback**: send any other unknown method to the highest-priority eligible
   live backend after liveness, method, and known-language filtering.
@@ -299,7 +295,7 @@ has an explicit policy.
 | --- | --- |
 | locations | Normalize `LocationLink` to `Location`, then stably combine by URI and range identity. |
 | highlights, lenses, links, colors, folding ranges, inlay hints, inline values, monikers, code actions, hierarchy-prepare items, workspace symbols | Stable priority-then-declaration concatenation; exact duplicate JSON values keep only the highest-priority owner. |
-| hierarchy follow-ups and standard resolve methods | Route through the opaque owner retained on the originating item; collection-shaped hierarchy replies remain exactly de-duplicated. |
+| hierarchy follow-ups and standard resolve methods | Route a recognized token through its retained owner; reject stale same-session tokens and use the highest-priority eligible provider for an unowned standard item. Collection-shaped hierarchy replies remain exactly de-duplicated. |
 | document symbols | Highest-priority capable provider, preserving its internally consistent `DocumentSymbol[]` or `SymbolInformation[]` shape. |
 | completion | Negotiate only compactly supported `data`/`editRange` defaults, materialize required compatibility fields during one preallocated-vector pass, OR `isIncomplete`, preserve every item without cross-backend de-duplication, and attach one atomic response ownership batch. |
 | inline completion | Use the highest-priority capable provider, preserve either legal result shape, and namespace every item command. |
@@ -590,7 +586,7 @@ primary and related reports have all been ingested.
 
 The benchmark suite measures route/target selection, UTF-16 change
 application, capability combination, completion merge/ownership, diagnostic
-attribution, and Tailwind's 11,509-item shared-default path. Results are useful
+attribution, and a large Tailwind shared-default path. Results are useful
 for comparisons on the same Emacs build and machine; CI tests correctness, not
 wall-clock thresholds. The opt-in `make test-corfu-e2e` target adds a real
 Tailwind → Eglot CAPF → Orderless → Corfu candidate/selection path; its

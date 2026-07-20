@@ -5,7 +5,8 @@
 > **实现范围更新（2026-07-19）：** 下文保留 fork 根因分析；当前实现只接受标准
 > `textDocument/publishDiagnostics` 和 document pull diagnostics。Eglot streaming 是
 > facade-to-client 投影，未协商的 child `$/streamDiagnostics` 会被忽略；
-> `workspace/diagnostic` facade 也不在支持面内。
+> `workspace/diagnostic` facade 也不在支持面内。当前契约与实现说明分别见
+> [`docs/spec.md`](../spec.md) 和 [`docs/architecture.md`](../architecture.md)。
 
 本文只使用 `cxa/eglot-lspx`、`thefrontside/lspx`、`cxa/lspx` 的 README、源码和提交历史，以及 LSP 3.17 规范。所有仓库链接都固定到 commit，避免后续主分支变化影响结论。
 
@@ -125,20 +126,22 @@ Eglotx 自己启动并持有每个 child connection，所以收到 notification 
 
 满足这些条件即表示 Eglotx 在自身 facade 内解决了 fork 所补的 provenance/aggregation 问题，而且覆盖范围强于原 `cxa/lspx` + `eglot-lspx.el` 组合。
 
-## 修复前对照（基线 `f553430`）：两个广义场景仍有缺口
+## 修复前对照（0.1.0 squash 前工作快照）：两个广义场景仍有缺口
 
 该基线实现不依赖 `cxa/lspx` 的私有字段，并且已经解决 README 原场景中最核心的 open-buffer provenance/aggregation 问题：
 
-以下位置以 `f553430` 的源码行号为准，可用
-`git show f553430:eglotx.el` 与 `git show f553430:test/eglotx-test.el` 核对：
+该快照没有作为 Git ref 进入发布历史。下面保留函数级结论，不再把发布前行号伪装成
+当前可复现的源码锚点：
 
-- 每条 child connection 的 notification dispatcher 闭包直接捕获 `backend`，来源身份不会在进入 facade 前丢失（L1064-L1073）。
-- diagnostics queue 用 `(backend-id . uri)` 区分同 URI 的并发发布；正式 snapshot key 是 `(backend-id, uri, modality)`（L4517-L4538、L4218-L4221）。
-- 完整 publication 验证后只替换对应 backend snapshot；空数组删除该 key，ordinary aggregate 再按 backend priority 拼出 facade 快照（L4345-L4392、L4290-L4304）。
-- version 是否存在与其 truthiness 分开判断，因此 version `0` 也能正确拒绝 stale publication（L4345-L4378）。
-- backend 失败时只枚举并移除以该 backend id 开头的 diagnostic keys，再重发剩余 aggregate（L1168-L1220）。
-- 非 streaming fallback 与含 pull provider 的 mixed cohort 都给 Eglot 发送 ordinary aggregate，所以一个 backend 的空数组不会清掉 sibling；open buffer 的全 push streaming cohort 则以稳定的 `backend:<id>` token 隔离快照（L4380-L4392）。
-- 回归测试覆盖双 backend 聚合/清除、version-zero stale publication，以及 **non-streaming** unopened URI 的聚合、独立清除和 `data` owner round-trip（测试 L1197-L1250、L1290-L1334、L1443-L1512）。
+- 每条 child connection 的 notification dispatcher 闭包直接捕获 `backend`，来源身份不会在进入 facade 前丢失。
+- diagnostics queue 用 `(backend-id . uri)` 区分同 URI 的并发发布；正式 snapshot key 是 `(backend-id, uri, modality)`。
+- 完整 publication 验证后只替换对应 backend snapshot；空数组删除该 key，ordinary aggregate 再按 backend priority 拼出 facade 快照。
+- version 是否存在与其 truthiness 分开判断，因此 version `0` 也能正确拒绝 stale publication。
+- backend 失败时只移除该 backend 的 diagnostic keys，再重发剩余 aggregate。
+- 非 streaming fallback 与含 pull provider 的 mixed cohort 都给 Eglot 发送
+  ordinary aggregate，所以一个 backend 的空数组不会清掉 sibling；open buffer 的全
+  push streaming cohort 则以稳定的 backend token 隔离快照。
+- 回归测试覆盖双 backend 聚合/清除、version-zero stale publication，以及 **non-streaming** unopened URI 的聚合、独立清除和 `data` owner round-trip。
 
 但是该基线还不能宣称所有 published diagnostics 场景完整解决：
 

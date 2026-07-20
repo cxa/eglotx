@@ -2,7 +2,10 @@
 
 日期：2026-07-20
 
-状态：面向 Eglotx Astro preset 的实现依据；上游源码链接固定到调研快照，在线文档只用于项目公开承诺。
+> **文档状态（2026-07-20）：** 本文是 Astro preset 的历史调研与验收设计，
+> 不是当前支持契约。当前 recipe、探测规则与验证范围以
+> [`docs/presets.md`](../presets.md) 为准，facade 行为以
+> [`docs/spec.md`](../spec.md) 为准；上游源码链接固定到调研快照。
 
 ## 结论
 
@@ -142,7 +145,11 @@ diagnostics 按 `(backend, uri)` 保存完整快照，再稳定合并；一个 b
 
 ## 6. 最小 fixture 与 E2E
 
-建立两个隔离项目：`astro_ts_tailwind_eslint` 与 `astro_ts_tailwind_biome`。两者只需 `src/pages/index.astro`、`src/styles.css`、`package.json`、`tsconfig.json` 和对应 lint config。
+建立两个隔离项目：`astro_ts_tailwind_eslint` 与
+`astro_ts_tailwind_biome`。当前最小 fixture 包含 `astro.config.mjs`、
+`src/pages/index.astro`、`src/styles.css`、`package.json`、`tsconfig.json`
+和对应 lint config；实际清单以
+[`test/projects/README.md`](../../test/projects/README.md) 为准。
 
 共同依赖包含 Astro、`@astrojs/language-server`、TypeScript、Tailwind v4、Tailwind Language Server、Prettier 与 `prettier-plugin-astro`；CSS 只用 `@import "tailwindcss"`，不得添加 Tailwind config marker。
 

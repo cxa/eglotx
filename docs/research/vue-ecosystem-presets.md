@@ -76,7 +76,7 @@ VLS 当前不需要 preset 注入 initialization options。尤其禁止继续注
 /nearest/project/node_modules/.bin/typescript-language-server --stdio
 ```
 
-官方 TLS 支持通过 initialize 的 `plugins` 注册 TypeScript plugin，并用 `languages` 扩展它原本不接受的 language id。[TLS configuration](https://github.com/typescript-language-server/typescript-language-server/blob/master/docs/configuration.md#plugins-option)
+官方 TLS 支持通过 initialize 的 `plugins` 注册 TypeScript plugin，并用 `languages` 扩展它原本不接受的 language id。[TLS configuration](https://github.com/typescript-language-server/typescript-language-server/blob/c6a35fbbdd6fb8681ca7e19a09372d2376e108e5/docs/configuration.md#plugins-option)
 
 推荐 initializationOptions：
 

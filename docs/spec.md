@@ -65,101 +65,34 @@ live in [`architecture.md`](architecture.md); dated research is non-normative.
 
 - Requiring the core does not inspect projects or mutate
   `eglot-server-programs`.
-- `eglotx-presets-mode` reversibly prepends its bundled contacts; disabling
-  it removes only the exact entries that it installed.
-- Enabling the mode snapshots preceding Eglot contacts. If a bundled recipe
-  cannot resolve its supported required primary or required configuration, it
-  returns the matching saved static contact or calls the saved functional
-  contact with its supported arity. Disabling clears the fallback state.
-- The contacts cover Svelte and Astro components, Vue SFCs, one Angular-aware
-  JavaScript/TypeScript cohort, HTML, CSS/SCSS/Less, JSON/JSONC, GraphQL,
-  Python, the complete Go
-  source/module/workspace cohort, and Ruby. JSONC is ordered before its JSON
-  parent modes so Eglot retains the exact language ID.
-- The Svelte entry assigns language ID `svelte` to `svelte-ts-mode` and
-  `svelte-mode`. `svelteserver --stdio` is its sole required structural primary
-  because that process embeds Svelte, HTML, CSS, and JS/TS plugins.  The contact
-  must not start TypeScript, HTML, or CSS Language Server for a `.svelte` URI.
-  SvelteKit adds no separate server; `.svelte.ts` and `.svelte.js` remain in the
-  ordinary JS/TS cohort.
-- Svelte may add intent-gated ESLint, Tailwind CSS, GraphQL, and Biome >= 2.3,
-  each restricted to language ID `svelte` and its complementary method role.
-  Embedded ESLint requires a structural config or manifest dependency; a local
-  `vscode-eslint-language-server` executable alone is not intent because it can
-  be incidental to a shared extracted-language-server package.
-  GraphQL still requires structural GraphQL Config.  ESLint and Tailwind do not
-  own formatting.  Biome without an explicit project
-  `html.experimentalFullSupportEnabled: true` flag omits formatting and runs
-  below Svelte priority; with the flag it is the single higher-priority
-  formatter.  Completion/code-action resolve and diagnostics retain their
-  producing backend through the generic core ownership model.
-- The Astro entry is ordered before HTML and assigns language ID `astro` to
-  `astro-ts-mode` and legacy `astro-mode`; it does not claim generic
-  `web-mode`.  `astro-ls --stdio` is its sole required structural primary and
-  owns the Astro, TypeScript/JavaScript, HTML, and CSS regions of an `.astro`
-  document.  The contact must not start TypeScript, HTML, CSS, Vue, or Svelte
-  Language Server for that URI.
-- Astro Language Server additionally requires the nearest project
-  `node_modules/typescript/lib/` directory containing `typescript.js` or
-  `tsserverlibrary.js`.  The contact passes that directory through
-  `initializationOptions.typescript.tsdk`; a missing validated SDK delegates
-  to the preceding Eglot contact instead of starting a server that cannot
-  initialize.
-- Astro may add intent-gated ESLint, Tailwind CSS, GraphQL, and Biome >= 2.3,
-  each restricted to language ID `astro` and the same complementary embedded
-  method roles as the shared embedded-Web policy.  Embedded ESLint still
-  requires a structural config or manifest dependency, and GraphQL still
-  requires structural GraphQL Config.  Without an explicit project
-  `html.experimentalFullSupportEnabled: true` flag, Biome omits formatting and
-  runs below Astro priority; with the flag it is the higher-priority
-  formatter.  ESLint, Tailwind, and GraphQL never own Astro formatting.
-- The TypeScript contact prefers the nearest executable under an ancestor
-  `node_modules/.bin`, bounded by the project root, before the correct local or
-  remote PATH.
-- TypeScript Language Server is required. Biome, ESLint, Tailwind CSS, and
-  embedded GraphQL are optional and activate only under their recipe's strong
-  project intent. Depending on the add-on, that is a structurally matched
-  marker, an exact dependency, required GraphQL configuration, or a
-  project-local executable. Marker matching uses punctuation-delimited filename
-  segments rather than relying on an exhaustive filename list.
-- Vue SFCs require Vue Language Server, TypeScript Language Server, a validated
-  `@vue/language-server` package directory, and the private TypeScript bridge.
-  Both children accept `vue`; TLS loads `@vue/typescript-plugin` from the
-  selected VLS package. The nearest TypeScript SDK is passed to TLS and, for a
-  compatible VLS version, through `--tsdk`. Missing any required component
-  delegates to the preceding Eglot contact instead of starting a partial stack.
-- Vue reuses the ESLint, Tailwind, and GraphQL intent gates. Biome joins Vue
-  only for a selected package version >= 2.3. Without the project's explicit
-  experimental full-HTML flag it is restricted to diagnostics/code actions
-  below VLS priority; with that flag it may own whole-SFC formatting.
-- Biome runs through `biome lsp-proxy`. Its priority places an advertised Biome
-  formatter ahead of TypeScript formatting after explicit project intent;
-  standard capabilities that Biome does not advertise continue to use
-  TypeScript. The same priority makes Biome the highest-priority eligible
-  backend for unknown extension methods while active. The preset supplies an
-  empty settings object without replacing user-provided `biome` workspace
-  settings.
-- The ESLint recipe validates after project intent is established, lets the
-  server infer the working directory per document, and does not override the
-  ESLint generation's legacy/flat-config selection.
-- Angular is an optional member of the single JS/TS cohort and accepts only
-  the `typescript` language ID. The CSS cohort includes CSS, SCSS, and Less,
-  while its Biome add-on accepts only `css`. The Go cohort includes `go`,
-  `go.mod`, and `go.work`, while GolangCI accepts only `go`.
-- Python chooses one full primary and may add `ruff server` at priority 120.
-  Ruff's method filter lets it win formatting without claiming structural
-  requests from the primary. Ruby checks every local primary alternative
-  before falling back to PATH.
-- GraphQL requires structural GraphQL Config and passes its directory through
-  `--configDir`. Config presence is intentionally a conservative project-level
-  intent signal; GraphQL Language Service remains responsible for matching
-  individual documents and may ignore a cohort document.
-- Two or more resolved backends produce an `eglotx-contact`; one resolved
-  backend produces an ordinary Eglot contact and retains its static
-  initialization options. A missing required primary
-  or required config first delegates to the pre-preset contact; only without a
-  resolved fallback does it return nil for interactive selection or signal a
-  configuration error for noninteractive startup.
+- The current modes, language IDs, commands, priorities, intent gates, required
+  stacks, and exclusions are defined once in the authoritative
+  [`presets.md`](presets.md) catalog rather than duplicated in this contract.
+- `eglotx-presets-mode` reversibly prepends its owned contacts.  Enabling it is
+  idempotent; disabling it removes only the exact entries it installed.
+- Enabling the mode snapshots preceding Eglot contacts.  A recipe that cannot
+  resolve a required primary, companion, or configuration returns the matching
+  saved static contact or calls the saved functional contact with its supported
+  arity.  Disabling clears the fallback state.
+- A recipe normally chooses one structural primary.  It adds a complementary
+  backend only when both its executable and a documented strong project-intent
+  signal are present.  Required multi-process stacks are explicit exceptions;
+  interchangeable full primaries remain alternatives rather than being started
+  together.
+- Exact mode-to-language mappings and backend `:languages`/`:only` restrictions
+  keep embedded and mixed-language cohorts from receiving unrelated document
+  traffic or claiming facade-wide capabilities.
+- Project-local executables win within the recipe's bounded ecosystem paths,
+  followed by the correct local or remote PATH.  Discovery never invokes a
+  shell, package manager, config evaluator, or recursive workspace scan.
+- One resolved backend returns an ordinary Eglot contact and preserves static
+  initialization options.  Two or more resolved backends return an Eglotx
+  facade.  A missing optional backend is simply omitted.
+- Contact resolution has bounded ancestor, file-read, and marker-candidate
+  budgets and caches repeated fixed-file and executable probes for that one
+  resolution.  Remote projects skip directory-listing marker discovery.
+- `eglotx-presets-disabled-backends` suppresses only optional add-ons; replacing
+  a primary or an entire recipe requires a user contact ahead of the catalog.
 
 ## LSP semantics
 
@@ -376,18 +309,18 @@ live in [`architecture.md`](architecture.md); dated research is non-normative.
   generation/lifecycle instead of this LRU.
 - The repository includes repeatable microbenchmarks for route selection,
   UTF-16 change application, capability combination, completion
-  merge/ownership, diagnostic attribution, and the 11,509-item Tailwind
-  shared-default path. Integration tests use real Emacs processes speaking LSP
+  merge/ownership, diagnostic attribution, and a large Tailwind shared-default
+  path. Integration tests use real Emacs processes speaking LSP
   framing. An opt-in real Tailwind fixture also exercises Eglot CAPF, Orderless,
   Corfu candidate computation, delayed resolve, and final buffer insertion.
 - Preset discovery is a new-session cold path. It retains at most 32 nearest
   ancestors plus the project root, reads at most 1 MiB from one metadata file
-  and 4 MiB per contact context, and caches positive and negative probes. Local
-  fallback detection performs bounded non-recursive marker listings and
-  retains at most 64 keyword-bearing candidates per listing; remote projects
-  skip listings. Discovery never recursively scans a project or invokes a
-  package manager. Python virtual-environment executable probes use only the
-  nearest eight ancestors plus the project root.
+  and 4 MiB per contact context, and caches repeated fixed-file and executable
+  probes. Local fallback detection performs bounded non-recursive marker
+  listings and retains at most 64 keyword-bearing candidates per listing;
+  remote projects skip listings. Discovery never recursively scans a project
+  or invokes a package manager. Python virtual-environment executable probes
+  use only the nearest eight ancestors plus the project root.
 
 ## Compatibility and security
 
@@ -454,16 +387,8 @@ live in [`architecture.md`](architecture.md); dated research is non-normative.
     resolvable after newer CAPF batches evict its fallback entry, after GC, and
     after `didChange`; close/reopen and backend retirement reject the stale
     candidate, while in-flight mutation returns `ContentModified`.
-15. The Svelte ESLint and Biome fixtures each start exactly one Svelte
-    structural primary plus the intended add-ons; both deliver independent
-    type/lint diagnostics, reject stale Svelte 5 rune diagnostics, and preserve
-    both Svelte and Tailwind completion/resolve ownership, while formatter
-    ownership changes from Svelte to Biome only under the explicit full-support
-    project flag.
-16. The Astro ESLint and Biome fixtures each start exactly one Astro
-    structural primary plus the intended add-ons; both deliver independent
-    Astro type and lint diagnostics and preserve Astro and Tailwind
-    completion/resolve ownership.  The ESLint fixture leaves formatting with
-    Astro, while the explicit full-support Biome fixture gives formatting to
-    Biome.  No TypeScript, HTML, CSS, Vue, or Svelte child starts for the
-    `.astro` document.
+15. The opt-in real-server scenarios in the preset
+    [verification matrix](presets.md#verification-matrix) start the exact
+    intended backend sets, deliver independent structural and lint diagnostics,
+    preserve completion/resolve provenance, and select the documented formatter
+    without duplicate structural servers.

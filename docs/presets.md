@@ -45,24 +45,23 @@ The Svelte entry maps `svelte-ts-mode` and `svelte-mode` to the exact `svelte`
 language ID.  Astro maps `astro-ts-mode` and legacy `astro-mode` to `astro`,
 and its entry precedes HTML so neither Astro mode can fall through to the HTML
 contact.  The Vue entry similarly maps `vue-ts-mode`, `vue-mode`, and
-`vue-html-mode` to `vue`.  None claims generic `web-mode`, HTML, or Markdown
-buffers, where the actual embedded language cannot be inferred safely.  The
-single JavaScript/TypeScript entry always resolves the ordinary JS/TS stack and
-adds Angular only when Angular intent is present.  The Angular
-backend declares `:languages ("typescript")`, so JavaScript, JSX, and TSX stay
-in the same Eglot cohort without being sent to `ngserver`.  The Go entry keeps
-source, module, and workspace buffers in gopls's complete cohort, while the
-GolangCI add-on declares `:languages ("go")` and never receives `go.mod` or
-`go.work` traffic.  Similarly, the CSS entry groups CSS, SCSS, and Less, but
-its Biome add-on accepts only `css`; the structural CSS primary and Tailwind
-remain available to the whole cohort.
+`vue-html-mode` to `vue`.  None of these three component entries claims generic
+`web-mode`, ordinary `html-mode`, or Markdown buffers, where the embedded
+language cannot be inferred safely.  The single JavaScript/TypeScript entry
+always resolves the ordinary JS/TS stack and adds Angular only when Angular
+intent is present.  The Angular backend declares `:languages ("typescript")`,
+so JavaScript, JSX, and TSX stay in the same Eglot cohort without being sent to
+`ngserver`.  The Go entry keeps source, module, and workspace buffers in
+gopls's complete cohort, while the GolangCI add-on declares `:languages
+("go")` and never receives `go.mod` or `go.work` traffic.  Similarly, the CSS
+entry groups CSS, SCSS, and Less, but its Biome add-on accepts only `css`; the
+structural CSS primary and Tailwind remain available to the whole cohort.
 
-Each mapping supplies an exact LSP language ID, including `javascriptreact`,
-`typescriptreact`, `css`, `scss`, `less`, `go`, `go.mod`, `go.work`, and
-`jsonc`.  `jsonc-mode` is deliberately listed before its JSON parent modes so
-Eglot preserves the `jsonc` ID.  Enabling the mode repeatedly is idempotent.
-Disabling it removes only the exact cons cells installed by the mode, so an
-equal-looking entry owned by the user remains in place.
+Each mapping supplies an exact LSP language ID.  `jsonc-mode` is deliberately
+listed before its JSON parent modes so Eglot preserves the `jsonc` ID.  Enabling
+the mode repeatedly is idempotent.  Disabling it removes only the exact cons
+cells installed by the mode, so an equal-looking entry owned by the user
+remains in place.
 
 Bundled Eglot on Emacs 29 stores only the startup mode's language ID for a
 multi-mode session.  Eglotx reconstructs and caches the exact per-mode cohort
@@ -71,12 +70,13 @@ copy from the visiting buffer before tracking and routing it.  Newer Eglot
 provides that mode/ID mapping directly.
 
 Installation snapshots the `eglot-server-programs` contacts that preceded the
-catalog.  If a bundled recipe cannot find its supported required primary or,
-for GraphQL, required project configuration, it resolves the matching earlier
-contact instead of shadowing it.  Static contacts are returned unchanged;
-functional contacts are called with their normal supported one- or two-argument
-arity.  Disabling the mode removes the owned entries, leaves the preceding
-list visible again, and clears the fallback resolver and snapshot.
+catalog.  If a bundled recipe cannot find a required primary, companion, or
+configuration--including Vue's required stack, Astro's TypeScript SDK, and
+standalone GraphQL Config--it resolves the matching earlier contact instead of
+shadowing it.  Static contacts are returned unchanged; functional contacts are
+called with their normal supported one- or two-argument arity.  Disabling the
+mode removes the owned entries, leaves the preceding list visible again, and
+clears the fallback resolver and snapshot.
 
 For manual registration, use a public contact directly:
 
@@ -129,8 +129,8 @@ the same open-document state as its cohort.
 
 Some cohorts also use the core `:languages` restriction.  It filters
 document-scoped requests, notifications, and diagnostics by the LSP
-`languageId`, intersects initialize-time document selectors with the same set, and
-prevents a partial-cohort backend from advertising a static document
+`languageId`, intersects initialize-time document selectors with the same set,
+and prevents a partial-cohort backend from advertising a static document
 capability for the whole facade.  Semantic tokens require one provider that
 covers every language in the cohort.
 
@@ -139,13 +139,13 @@ Eglot contact instead of constructing an `eglotx-server` facade.  Static
 backend initialization options are mapped to Eglot's
 `:initializationOptions` contact keyword, so Astro retains its required
 TypeScript SDK on this fast path.  A missing optional server is omitted.  Vue
-is the intentional exception to the one-primary model:
-its current upstream protocol requires both Vue and TypeScript language servers
-plus the Vue TypeScript plugin. A missing required primary, Vue companion,
-Astro TypeScript SDK, or required GraphQL config first
-delegates to the matching contact captured before preset installation.  Only
-when no fallback contact resolves does interactive lookup return nil or
-noninteractive startup raise an actionable `eglotx-configuration-error`.
+is the intentional exception to the one-primary model: its current upstream
+protocol requires both Vue and TypeScript language servers plus the Vue
+TypeScript plugin.  A missing required primary, Vue companion, Astro
+TypeScript SDK, or required GraphQL config first delegates to the matching
+contact captured before preset installation.  Only when no fallback contact
+resolves does interactive lookup return nil or noninteractive startup raise an
+actionable `eglotx-configuration-error`.
 
 ## Executable precedence and trust
 
@@ -269,9 +269,9 @@ and join only the `astro` language cohort.  ESLint requires a structural config
 or manifest dependency even if its server executable is project-local, and it
 is limited to synchronization, configuration, diagnostics, code actions, and
 commands.  Tailwind retains its embedded completion/resolve, hover, color,
-link, code-action, and diagnostic role.  GraphQL still requires structural
-GraphQL Config and never owns formatting.  None of these add-ons causes a
-TypeScript, HTML, or CSS child to start.
+link, code-lens, code-action, and diagnostic role.  GraphQL still requires
+structural GraphQL Config and never owns formatting.  None of these add-ons
+causes a TypeScript, HTML, or CSS child to start.
 
 Biome is admitted only when the selected installed package version is at least
 2.3.  Without an explicit project
@@ -298,14 +298,15 @@ components before it starts:
 3. a validated `@vue/language-server` package directory from which TypeScript
    Language Server can resolve an installed `@vue/typescript-plugin` package.
 
-Each path follows the same nearest `node_modules/.bin` then PATH policy as the
-other Node recipes. Package ownership is verified from bounded `package.json`
-reads; the plugin `location` is the package directory, never the `.bin`
-wrapper. A PATH executable is accepted only when its resolved executable path
-can be traced to that validated package. The plugin itself is resolved through
-a bounded Node-style ancestor walk over both the package's real path (for pnpm
-virtual stores) and its lexical path (for hoisted dependencies); an incomplete
-install delegates to the preceding Eglot contact. The TypeScript child receives:
+Both executable paths follow the nearest `node_modules/.bin` then PATH policy
+used by the other Node recipes.  Package ownership is verified from bounded
+`package.json` reads; the plugin `location` is the package directory, never the
+`.bin` wrapper.  A PATH VLS executable is accepted only when its resolved path
+can be traced to that validated package.  The plugin directory is resolved
+separately through a bounded Node-style ancestor walk over both the package's
+real path (for pnpm virtual stores) and its lexical path (for hoisted
+dependencies).  An incomplete install delegates to the preceding Eglot
+contact.  The TypeScript child receives:
 
 ```elisp
 (:plugins [(:name "@vue/typescript-plugin"
@@ -383,9 +384,8 @@ actually negotiate; Eglotx merges collection results and uses the documented
 priorities for singleton methods.  Embedded Svelte/Astro/Vue contacts
 additionally apply role-specific `:only` lists so these add-ons cannot claim
 unrelated component structure.  ESLint formatting is disabled in the supplied
-workspace settings,
-while Tailwind contributes class completion/resolve, hover, color, links, code
-actions, and validation behavior.
+workspace settings, while Tailwind contributes class completion/resolve,
+hover, color, links, code actions, and validation behavior.
 
 Tailwind v4 has no required `tailwind.config.*` marker.  Its exact
 `tailwindcss` manifest dependency is the bounded v4 signal; CSS entrypoint and
@@ -436,13 +436,13 @@ the server may then ignore documents that do not match its own configuration.
 Angular activates from `angular.json`, an exact `@angular/core` dependency, or
 a project-local `ngserver`.  It is part of the single JS/TS contact but accepts
 only the `typescript` language ID.  The add-on is restricted to Angular-aware
-completion, hover, signature, navigation,
-references, implementation, rename, code actions, diagnostics, and commands;
-formatting and general workspace ownership stay with the base stack.  Probe
-locations are derived from the resolved local Node installation when present.
+completion, hover, signature, navigation, references, implementation, rename,
+code actions, diagnostics, and commands; formatting and general workspace
+ownership stay with the base stack.  Probe locations are derived from the
+resolved local Node installation when present.
 
-This first preset catalog supports Angular inline templates in TypeScript but
-does not send external `.html` templates to `ngserver`.  HTML remains a
+The Angular recipe supports inline templates in TypeScript but does not send
+external `.html` templates to `ngserver`.  HTML remains a
 separate Eglot cohort so ordinary HTML projects cannot accidentally join a
 TypeScript session; adding Angular to both contacts would instead start a
 duplicate Angular process for one project.  External-template multiplexing is
@@ -557,8 +557,10 @@ use `eglot-shutdown` and start Eglot again to perform fresh discovery.
 ## Performance and remote projects
 
 Discovery runs only when Eglot resolves a contact for a new project session.
-One context caches each attribute check, bounded read, parse, directory
-listing, and executable lookup for that resolution.  The hard bounds are:
+One context caches repeated fixed-file attributes, bounded reads, parses, and
+executable lookups for that resolution.  Keyword marker discovery performs a
+bounded local directory pass instead of a recursive scan.  The hard bounds
+are:
 
 - at most 32 nearest ancestors, with the project root retained as one final
   probe even in a deeper tree;
@@ -594,8 +596,10 @@ when one facade must cover heterogeneous siblings.
 
 ## Verification matrix
 
-`make check` is hermetic.  Across the catalog, fake-process and fixture-based
-ERT tests exercise positive and negative intent, command construction,
+`make check` is hermetic.  The complete fixture inventory and local setup notes
+are in [`../test/projects/README.md`](../test/projects/README.md).  Across the
+catalog, fake-process and fixture-based ERT tests exercise positive and
+negative intent, command construction,
 priority, language cohorts, fallback, and the single-server fast path; not
 every dimension is asserted separately for every recipe.  Real-server targets
 are opt-in:
