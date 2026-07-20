@@ -31,7 +31,7 @@ catalog:
 ```elisp
 (use-package eglotx
   :vc (:url "https://github.com/cxa/eglotx.git"
-       :rev "v0.1.0")
+       :rev "v0.1.1")
   :demand t
   :config
   (require 'eglotx-presets)
@@ -54,7 +54,7 @@ the VC package once before using an ordinary declaration:
 (unless (package-installed-p 'eglotx)
   (package-vc-install
    '(eglotx :url "https://github.com/cxa/eglotx.git")
-   "v0.1.0"))
+   "v0.1.1"))
 ```
 
 ### Source checkout

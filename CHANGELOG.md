@@ -6,6 +6,8 @@ All notable changes to Eglotx are documented in this file. The project uses
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-20
+
 ### Added
 
 - A zero-configuration Astro contact for `astro-ts-mode` and legacy
@@ -16,14 +18,17 @@ All notable changes to Eglotx are documented in this file. The project uses
 - Separate minimal Astro ESLint and Biome fixtures plus real-server E2E targets
   for type/lint diagnostics, formatter ownership, and Astro/Tailwind
   completion/resolve.
-- Preservation of static backend initialization options on the presets'
-  ordinary one-server Eglot fast path.
 - A zero-configuration Svelte contact for `svelte-mode` and `svelte-ts-mode`.
   It uses project-local-or-PATH `svelteserver` as the sole structural primary
   and adds only intent-gated ESLint, Tailwind CSS, Biome 2.3+, and GraphQL
   backends with Svelte-specific language and method boundaries.
 - Separate minimal Svelte ESLint and Biome fixtures plus real-server E2E targets
   for diagnostics, formatter ownership, and Tailwind completion/resolve.
+
+### Fixed
+
+- Preserve static backend initialization options on the presets' ordinary
+  one-server Eglot fast path.
 
 ## [0.1.0] - 2026-07-19
 
@@ -89,5 +94,6 @@ All notable changes to Eglotx are documented in this file. The project uses
   Tailwind-to-Corfu E2E targets.
 - CI checks on Emacs 29.4, 30.2, and the current snapshot build.
 
-[Unreleased]: https://github.com/cxa/eglotx/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/cxa/eglotx/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/cxa/eglotx/releases/tag/v0.1.1
 [0.1.0]: https://github.com/cxa/eglotx/releases/tag/v0.1.0

@@ -4,7 +4,7 @@
 
 ;; Author: CHEN Xian'an <xianan.chen@gmail.com>
 ;; Maintainer: CHEN Xian'an <xianan.chen@gmail.com>
-;; Version: 0.1.0
+;; Version: 0.1.1
 ;; Package-Requires: ((emacs "29.1") (eglot "1.24") (jsonrpc "1.0.29"))
 ;; Keywords: tools, languages
 ;; URL: https://github.com/cxa/eglotx
