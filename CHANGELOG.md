@@ -6,6 +6,12 @@ All notable changes to Eglotx are documented in this file. The project uses
 
 ## [Unreleased]
 
+### Changed
+
+- The manual core example now covers both Python major modes and explicitly
+  distinguishes static contacts from preset discovery, fallback, optional
+  backend gating, and the native single-server fast path.
+
 ## [0.1.2] - 2026-07-20
 
 ### Added

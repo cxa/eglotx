@@ -115,16 +115,18 @@ explicitly; core-only clients retain the eager compatibility path.
 
 ## Core/manual configuration
 
-For other languages or explicit server policy, require the core and install the
-contact returned by `eglotx-contact` in `eglot-server-programs`:
+After installing Eglotx as described above, load the Eglot adapter, which also
+loads the core.  Python is already covered by the presets; the following
+example deliberately bypasses their discovery to pin a static
+BasedPyright-plus-Ruff policy in `eglot-server-programs`:
 
 ```elisp
-(add-to-list 'load-path "/path/to/eglotx")
 (require 'eglotx-eglot)
 
 (add-to-list
  'eglot-server-programs
- `(python-mode
+ `(((python-mode :language-id "python")
+    (python-ts-mode :language-id "python"))
    . ,(eglotx-contact
        '(:name "basedpyright"
          :command ("basedpyright-langserver" "--stdio")
@@ -153,11 +155,29 @@ The comma is significant: `eglotx-contact` constructs the native
 `(eglotx-server ...)` contact that Eglot consumes. Once configured, start the
 session normally with `M-x eglot` or `eglot-ensure`.
 
-Manual contacts should pair complementary servers and declare conflicts with
-priority, `:only`, or `:languages`; starting several interchangeable full
-servers duplicates indexing and produces ambiguous ownership.  Argv shorthand
-is supported for backends that truly need no policy, but production contacts
-usually benefit from explicit names and roles.
+This manual contact is static.  When Eglot starts a session for either matched
+Python mode, the core resolves both command names through Emacs's `exec-path`
+and attempts both processes.  Ruff's `:required nil` makes its failure
+degradable; it does not mean "start Ruff only when installed", and it performs
+no project-intent detection.  Use `:when` to conditionally deactivate a backend
+while retaining the facade, or a contact function when preset-like dynamic
+materialization is required.
+
+Unlike presets, the core does not search project environments, select among
+primary alternatives, inspect manifests or configuration, or preserve an
+earlier Eglot contact as fallback.  `eglotx-contact` requires at least two
+declared descriptors and always constructs a facade; filtering the active set
+down to one backend does not enable the presets' native single-server fast
+path.
+
+Manual contacts should pair complementary servers.  Use `:only` and
+`:languages` to delimit their responsibilities, then `:priority` for stable
+merge order, singleton ownership, and unknown-method fallback.  Priority alone
+does not stop collection methods from reaching every eligible backend.
+Starting several interchangeable full servers duplicates indexing and
+produces ambiguous ownership.  Argv shorthand is supported for backends that
+truly need no policy, but production contacts usually benefit from explicit
+names and roles.
 
 The complete descriptor contract, overlay semantics, status schema, bridge
 API, and customization variables are in [`docs/api.md`](docs/api.md).
