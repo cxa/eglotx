@@ -123,8 +123,9 @@ Use `M-x customize-group RET eglotx` for the core and
 
 ## Preset contacts
 
-`eglotx-presets-mode` globally installs ten project-aware entries.  Their
+`eglotx-presets-mode` globally installs project-aware entries.  Their
 autoloaded contacts are `eglotx-presets-svelte-contact`,
+`eglotx-presets-astro-contact`,
 `eglotx-presets-vue-contact`,
 `eglotx-presets-angular-contact`, `eglotx-presets-html-contact`,
 `eglotx-presets-css-contact`, `eglotx-presets-json-contact`,
@@ -133,10 +134,16 @@ autoloaded contacts are `eglotx-presets-svelte-contact`,
 `eglotx-presets-typescript-contact` is also public for a manual generic JS/TS
 mapping without the Angular detector.
 
+The Astro catalog entry maps `astro-ts-mode` and legacy `astro-mode` to the
+exact `astro` language ID and is ordered before the HTML entry.  It does not
+claim generic `web-mode`.
+
 Each contact accepts optional `INTERACTIVE` and `PROJECT` arguments.  `PROJECT`
 defaults to the current project.  Missing required components first delegate
 to the matching contact captured by `eglotx-presets-mode`; without a fallback,
 interactive resolution returns nil so Eglot can prompt, while noninteractive
 resolution signals `eglotx-configuration-error`.  One resolved backend returns
-an ordinary argv contact; two or more return an Eglotx facade.  Exact recipes,
-intent gates, and trust boundaries are defined in [`presets.md`](presets.md).
+an ordinary Eglot contact and retains any static `:initialization-options` as
+Eglot's `:initializationOptions` contact keyword; two or more return an Eglotx
+facade.  Exact recipes, intent gates, and trust boundaries are defined in
+[`presets.md`](presets.md).

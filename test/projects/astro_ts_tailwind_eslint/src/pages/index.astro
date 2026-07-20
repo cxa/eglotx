@@ -1,0 +1,13 @@
+---
+import "../styles.css";
+
+const title: string = 42;
+const unused = true;
+let count = 1;
+---
+
+<main class="p-4 text-sm">
+  <h1>{title}</h1>
+  <button onclick={() => count++}>{count}</button>
+  <output>{count.toFixed(0)}</output>
+</main>

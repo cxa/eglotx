@@ -13,6 +13,10 @@ backends:
   and ESLint without a duplicate TypeScript/HTML/CSS server.
 - `svelte_ts_tailwind_biome` activates Svelte Language Server, Tailwind CSS v4,
   and Biome's explicitly enabled full Svelte support.
+- `astro_ts_tailwind_eslint` activates Astro Language Server, Tailwind CSS v4,
+  and ESLint without duplicate TypeScript/HTML/CSS/Vue/Svelte servers.
+- `astro_ts_tailwind_biome` activates Astro Language Server, Tailwind CSS v4,
+  and Biome's explicitly enabled full Astro support.
 - `python_ruff` activates one Python primary plus Ruff.
 - `go_golangci` activates gopls plus golangci-lint-langserver.
 - `ruby_sorbet` activates Ruby LSP plus Sorbet.
@@ -25,10 +29,16 @@ project-local `vue-language-server`,
 `tailwindcss-language-server` so it can verify local precedence and the exact
 Vue package/plugin relationship.  The Svelte E2E targets likewise require
 project-local `svelteserver`, `tailwindcss-language-server`, and their selected
-ESLint or Biome backend.  The remaining fixtures keep intent, command, and
-cohort tests reproducible without making the default suite depend on external
-toolchains.
+ESLint or Biome backend.  The Astro E2E targets require project-local
+`astro-ls`, TypeScript, `tailwindcss-language-server`, and their selected
+ESLint or Biome backend; the fixtures also include Prettier and its Astro
+plugin so the Astro formatter path is testable.  The remaining fixtures keep
+intent, command, and cohort tests reproducible without making the default suite
+depend on external toolchains.
 
 ```sh
 make test-presets-e2e
+make test-astro-eslint-e2e
+make test-astro-biome-e2e
+make test-astro-e2e
 ```

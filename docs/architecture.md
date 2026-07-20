@@ -40,7 +40,7 @@ layer above the facade:
 flowchart LR
     P["project files + executable paths"] -->|"new-session cold path"| R["bounded preset context + resolver"]
     R -->|"2-6 resolved backends"| C["eglotx-contact"]
-    R -->|"1 resolved backend"| E["ordinary Eglot argv contact"]
+    R -->|"1 resolved backend"| E["ordinary Eglot contact"]
     C --> F["eglotx.el facade core"]
 ```
 
@@ -49,9 +49,10 @@ never requires presets. The resolver uses only the public `eglotx-contact`
 seam. Language names, package manifests, `node_modules`, server settings, and
 mutation of `eglot-server-programs` are forbidden from the core.
 
-The global preset mode owns ten exact `eglot-server-programs` entries: Svelte,
-Vue, one Angular-aware JS/TS cohort, HTML, CSS/SCSS/Less, JSON/JSONC, GraphQL,
-Python, the complete Go source/module/workspace cohort, and Ruby. Eglot invokes
+The global preset mode owns exact `eglot-server-programs` entries for Svelte,
+Astro, Vue, one Angular-aware JS/TS cohort, HTML, CSS/SCSS/Less, JSON/JSONC,
+GraphQL, Python, the complete Go source/module/workspace cohort, and Ruby.
+Eglot invokes
 only the selected contact when choosing a server for a new project session. Its
 contact-lifetime context walks at most 32 nearest ancestors plus a retained
 project root, caps individual and aggregate metadata reads, caches positive
@@ -62,12 +63,22 @@ enters a JSON-RPC callback or protocol hot path. The resolved contact is stable
 for the session; an explicit shutdown followed by a new start reruns discovery
 after dependencies change.
 
-Svelte and Vue share one presets-layer embedded-Web add-on resolver for Biome,
-ESLint, Tailwind, and GraphQL intent, executable, language, and method policy.
-Their structural primaries remain different: Svelte Language Server embeds its
-HTML/CSS/JS/TS services and needs no sibling bridge, while Vue's upstream
-protocol requires the separate VLS/TLS adapter described below.  No Svelte
+Svelte, Astro, and Vue share one presets-layer embedded-Web add-on resolver for
+Biome, ESLint, Tailwind, and GraphQL intent, executable, language, and method
+policy.  Their structural primaries remain different: Svelte Language Server
+and Astro Language Server each embed their HTML/CSS/JS/TS services and need no
+sibling structural server, while Vue's upstream protocol requires the separate
+VLS/TLS adapter described below.  Astro discovery also validates the nearest
+project TypeScript SDK before constructing its contact.  No Svelte or Astro
 package name, command, or capability rule enters the facade core.
+
+The one-backend materializer normally copies the backend argv directly into an
+ordinary Eglot contact.  If a descriptor has static initialization options, it
+also maps them to Eglot's `:initializationOptions` contact keyword; Astro uses
+this path to retain `typescript.tsdk` without paying facade overhead.  A
+function-valued transformation remains a facade-only descriptor feature and is
+rejected on the one-backend path rather than being invoked with Eglot's
+different contact-function contract.
 
 Mode installation snapshots the contacts that precede the bundled entries. If
 a recipe cannot resolve its supported required primary or required config, it

@@ -69,9 +69,10 @@ versions are older than the declared minimums.  Then put the checkout on
 
 ## Preset behavior
 
-The global mode installs ten project-aware contacts: Svelte and Vue SFCs, one
-Angular-aware JavaScript/TypeScript cohort, HTML, CSS/SCSS/Less, JSON/JSONC,
-GraphQL, Python, the complete Go source/module/workspace cohort, and Ruby.
+The global mode installs project-aware contacts for Svelte and Astro
+components, Vue SFCs, one Angular-aware JavaScript/TypeScript cohort, HTML,
+CSS/SCSS/Less, JSON/JSONC, GraphQL, Python, the complete Go
+source/module/workspace cohort, and Ruby.
 Most contacts choose one structural primary and add only intent-backed
 complementary servers such as Ruff, GolangCI, Sorbet, ESLint, Tailwind CSS,
 Biome, GraphQL, or Angular.  Vue is the deliberate exception: VLS, TLS, and
@@ -87,13 +88,24 @@ it adds only intent-gated ESLint, Tailwind CSS, Biome 2.3+, and GraphQL.  Biome
 becomes the formatter only when the project explicitly enables its experimental
 full HTML support.  SvelteKit needs no separate LSP process.
 
+For `.astro` buffers, project-local-or-PATH `astro-ls --stdio` is likewise the
+sole structural primary.  Both `astro-ts-mode` and legacy `astro-mode` use the
+exact `astro` language ID; the preset does not send the document to separate
+TypeScript, HTML, CSS, Vue, or Svelte servers.  Astro Language Server requires
+the nearest validated project `node_modules/typescript/lib/` SDK, which the
+preset passes through `initializationOptions.typescript.tsdk`.  Optional
+ESLint, Tailwind CSS, Biome 2.3+, and GraphQL children require their usual
+strong project signals and are restricted to Astro documents.
+
 Start the session normally with `M-x eglot` or `eglot-ensure`.  A bundled preset
-contact that resolves to one backend returns an ordinary Eglot argv, so
-single-server projects skip the multiplexer overhead.  Optional add-ons are not
-enabled just because a matching executable happens to be on PATH: they also
+contact that resolves to one backend returns an ordinary Eglot contact, so
+single-server projects skip the multiplexer overhead; required static
+initialization options such as Astro's TypeScript SDK are retained on that
+fast path.  Optional add-ons are not enabled just because a matching executable
+happens to be on PATH: they also
 need a strong project signal such as a supported config, manifest declaration,
-or project-local executable.  Embedded Svelte/Vue ESLint is stricter: its
-project-local binary may come from a shared HTML/CSS package, so an ESLint
+or project-local executable.  Embedded Svelte/Astro/Vue ESLint is stricter:
+its project-local binary may come from a shared HTML/CSS package, so an ESLint
 config or dependency is still required.
 
 Enabling the mode snapshots the matching contacts that already precede the
@@ -220,9 +232,10 @@ make deps-corfu-e2e # install optional Corfu/Orderless E2E dependencies
 make compile    # byte-compile with warnings promoted to errors
 make test       # run the ERT integration suite
 make check      # clean, compile, and test
-make test-presets-e2e # opt-in real ESLint/Biome/Vue/Svelte preset smoke tests
+make test-presets-e2e # opt-in real ESLint/Biome/Vue/Svelte/Astro smoke tests
 make test-vue-e2e # real Vue/TypeScript bridge + ESLint + Tailwind smoke test
 make test-svelte-e2e # real Svelte + ESLint/Biome + Tailwind smoke tests
+make test-astro-e2e # real Astro + ESLint/Biome + Tailwind smoke tests
 make test-corfu-e2e # real Tailwind -> Eglot -> Orderless -> Corfu insertion
 make benchmark  # run repeatable protocol hot-path microbenchmarks
 ```

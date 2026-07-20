@@ -184,6 +184,12 @@
     . eglotx-presets-svelte-contact)
   "Entry installed for Svelte single-file components.")
 
+(defconst eglotx-presets--astro-entry
+  '(((astro-ts-mode :language-id "astro")
+     (astro-mode :language-id "astro"))
+    . eglotx-presets-astro-contact)
+  "Entry installed for Astro components.")
+
 (defconst eglotx-presets--vue-entry
   '(((vue-ts-mode :language-id "vue")
      (vue-mode :language-id "vue")
@@ -220,6 +226,7 @@
 
 (defconst eglotx-presets--entries
   (list eglotx-presets--svelte-entry
+        eglotx-presets--astro-entry
         eglotx-presets--vue-entry
         eglotx-presets--typescript-entry
         eglotx-presets--html-entry
@@ -242,6 +249,7 @@
 
 (defconst eglotx-presets--contact-functions
   '(eglotx-presets-svelte-contact
+    eglotx-presets-astro-contact
     eglotx-presets-vue-contact
     eglotx-presets-angular-contact
     eglotx-presets-typescript-contact
@@ -737,7 +745,7 @@ Build metadata is ignored.  A prerelease with the same numeric core remains
       (or (> comparison 0)
           (and (zerop comparison) (null (cdr candidate)))))))
 
-(defun eglotx-presets--vue-tsdk-directory (context)
+(defun eglotx-presets--typescript-sdk-directory (context)
   "Return CONTEXT's nearest validated project TypeScript lib directory."
   (catch 'found
     (dolist (directory (eglotx-presets--context-directories context))
@@ -745,8 +753,11 @@ Build metadata is ignored.  A prerelease with the same numeric core remains
              (file-name-as-directory
               (expand-file-name "node_modules/typescript/lib" directory))))
         (when (and (eglotx-presets--directory-p context candidate)
-                   (eglotx-presets--regular-file-p
-                    context (expand-file-name "typescript.js" candidate)))
+                   (or (eglotx-presets--regular-file-p
+                        context (expand-file-name "typescript.js" candidate))
+                       (eglotx-presets--regular-file-p
+                        context
+                        (expand-file-name "tsserverlibrary.js" candidate))))
           (throw 'found (eglotx-presets--process-path candidate)))))
     nil))
 
@@ -952,6 +963,49 @@ embedded documents."
     (nreverse backends)))
 
 ;;;###autoload
+(defun eglotx-presets-astro-contact (&optional interactive project)
+  "Return Astro Language Server plus detected complementary backends.
+
+Astro Language Server is the required structural server and owns Astro,
+TypeScript/JavaScript, HTML, and CSS regions of an Astro document.  It also
+requires the nearest project TypeScript SDK.  ESLint, Tailwind CSS, GraphQL,
+and Biome 2.3 or newer join only under their existing strong-intent policy.
+Biome may format the whole document only when its experimental full HTML
+support is explicitly enabled.
+
+Project-local executables take precedence over PATH, and the TypeScript SDK is
+resolved from the project.  With no add-ons, return an ordinary Eglot contact
+that retains Astro's required initialization options.  INTERACTIVE and PROJECT
+have the common preset-contact semantics documented by
+`eglotx-presets-mode'."
+  (let* ((context (eglotx-presets--make-context project))
+         (bin-directories (eglotx-presets--node-bin-directories context))
+         (resolution
+          (eglotx-presets--node-resolution context "astro-ls" bin-directories))
+         (executable (cdr resolution))
+         (tsdk (and executable
+                    (eglotx-presets--typescript-sdk-directory context)))
+         backends)
+    (when (and executable tsdk)
+      (setq backends
+            (cons
+             (list :name "astro"
+                   :command (list executable "--stdio")
+                   :priority 100
+                   :required t
+                   :languages '("astro")
+                   :initialization-options
+                   (list :typescript (list :tsdk tsdk)))
+             (eglotx-presets--embedded-web-addon-backends
+              context bin-directories "astro"))))
+    (eglotx-presets--materialize-contact
+     backends interactive
+     (if executable
+         "a project TypeScript SDK is required by astro-ls"
+       "astro-ls is not executable")
+     (eglotx-presets--context-project context))))
+
+;;;###autoload
 (defun eglotx-presets-svelte-contact (&optional interactive project)
   "Return Svelte Language Server plus detected complementary backends.
 
@@ -1027,7 +1081,7 @@ bundled contact functions."
                 context vue-package
                 "@vue/typescript-plugin" "@vue/typescript-plugin")))
          (tsdk (and vue-package
-                    (eglotx-presets--vue-tsdk-directory context)))
+                    (eglotx-presets--typescript-sdk-directory context)))
          backends)
     (if (not (and vue-executable typescript-executable vue-package
                   vue-typescript-plugin))
@@ -1572,11 +1626,11 @@ INTERACTIVE and PROJECT have the common preset-contact semantics documented by
 (define-minor-mode eglotx-presets-mode
   "Globally install the bundled project-aware Eglot contact catalog.
 
-Enabling prepends ten owned entries to `eglot-server-programs' and snapshots
+Enabling prepends its owned entries to `eglot-server-programs' and snapshots
 the contacts they shadow.  Each contact discovers servers only when Eglot
 starts a project session, delegates a missing required toolchain to the
-matching snapshot contact, returns an ordinary argv for one resolved backend,
-and constructs an Eglotx facade for two or more.  INTERACTIVE resolution may
+matching snapshot contact, returns a native Eglot contact for one resolved
+backend, and constructs an Eglotx facade for two or more.  INTERACTIVE may
 return nil for Eglot to prompt; noninteractive resolution without a fallback
 signals `eglotx-configuration-error'.  PROJECT defaults to the current project.
 

@@ -477,16 +477,29 @@ INTERACTIVE and PROJECT are forwarded to the optional fallback resolver."
 
 (defun eglotx-presets--materialize-contact
     (backends interactive missing-message &optional project)
-  "Turn BACKENDS into an ordinary or multiplexed Eglot contact.
+  "Turn BACKENDS into a native or multiplexed Eglot contact.
 
 When BACKENDS is empty, first resolve any Eglot mapping preserved for PROJECT.
 Without one, return nil for INTERACTIVE lookup and otherwise signal
-`eglotx-configuration-error' with MISSING-MESSAGE."
+`eglotx-configuration-error' with MISSING-MESSAGE.  A single backend retains
+its static initialization options in Eglot's native contact form."
   (pcase backends
     ('nil
      (eglotx-presets--missing-contact interactive missing-message project))
     (`(,backend)
-     (copy-sequence (plist-get backend :command)))
+     (append
+      (copy-sequence (plist-get backend :command))
+      (when (plist-member backend :initialization-options)
+        (let ((options (plist-get backend :initialization-options)))
+          ;; An Eglot contact function receives the server, whereas an Eglotx
+          ;; descriptor function transforms the client's JSON value.  Preset
+          ;; fast paths use static JSON; reject incompatible function
+          ;; semantics instead of silently changing their argument contract.
+          (when (functionp options)
+            (signal 'eglotx-configuration-error
+                    (list
+                     "single-backend presets require static initialization options")))
+          (list :initializationOptions (copy-tree options))))))
     (_ (apply #'eglotx-contact backends))))
 
 (provide 'eglotx-preset-engine)

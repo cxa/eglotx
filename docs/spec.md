@@ -65,13 +65,13 @@ live in [`architecture.md`](architecture.md); dated research is non-normative.
 
 - Requiring the core does not inspect projects or mutate
   `eglot-server-programs`.
-- `eglotx-presets-mode` reversibly prepends ten bundled contacts; disabling
+- `eglotx-presets-mode` reversibly prepends its bundled contacts; disabling
   it removes only the exact entries that it installed.
 - Enabling the mode snapshots preceding Eglot contacts. If a bundled recipe
   cannot resolve its supported required primary or required configuration, it
   returns the matching saved static contact or calls the saved functional
   contact with its supported arity. Disabling clears the fallback state.
-- The contacts cover Svelte and Vue SFCs, one Angular-aware
+- The contacts cover Svelte and Astro components, Vue SFCs, one Angular-aware
   JavaScript/TypeScript cohort, HTML, CSS/SCSS/Less, JSON/JSONC, GraphQL,
   Python, the complete Go
   source/module/workspace cohort, and Ruby. JSONC is ordered before its JSON
@@ -93,6 +93,26 @@ live in [`architecture.md`](architecture.md); dated research is non-normative.
   below Svelte priority; with the flag it is the single higher-priority
   formatter.  Completion/code-action resolve and diagnostics retain their
   producing backend through the generic core ownership model.
+- The Astro entry is ordered before HTML and assigns language ID `astro` to
+  `astro-ts-mode` and legacy `astro-mode`; it does not claim generic
+  `web-mode`.  `astro-ls --stdio` is its sole required structural primary and
+  owns the Astro, TypeScript/JavaScript, HTML, and CSS regions of an `.astro`
+  document.  The contact must not start TypeScript, HTML, CSS, Vue, or Svelte
+  Language Server for that URI.
+- Astro Language Server additionally requires the nearest project
+  `node_modules/typescript/lib/` directory containing `typescript.js` or
+  `tsserverlibrary.js`.  The contact passes that directory through
+  `initializationOptions.typescript.tsdk`; a missing validated SDK delegates
+  to the preceding Eglot contact instead of starting a server that cannot
+  initialize.
+- Astro may add intent-gated ESLint, Tailwind CSS, GraphQL, and Biome >= 2.3,
+  each restricted to language ID `astro` and the same complementary embedded
+  method roles as the shared embedded-Web policy.  Embedded ESLint still
+  requires a structural config or manifest dependency, and GraphQL still
+  requires structural GraphQL Config.  Without an explicit project
+  `html.experimentalFullSupportEnabled: true` flag, Biome omits formatting and
+  runs below Astro priority; with the flag it is the higher-priority
+  formatter.  ESLint, Tailwind, and GraphQL never own Astro formatting.
 - The TypeScript contact prefers the nearest executable under an ancestor
   `node_modules/.bin`, bounded by the project root, before the correct local or
   remote PATH.
@@ -135,7 +155,8 @@ live in [`architecture.md`](architecture.md); dated research is non-normative.
   intent signal; GraphQL Language Service remains responsible for matching
   individual documents and may ignore a cohort document.
 - Two or more resolved backends produce an `eglotx-contact`; one resolved
-  backend produces an ordinary Eglot argv contact. A missing required primary
+  backend produces an ordinary Eglot contact and retains its static
+  initialization options. A missing required primary
   or required config first delegates to the pre-preset contact; only without a
   resolved fallback does it return nil for interactive selection or signal a
   configuration error for noninteractive startup.
@@ -439,3 +460,10 @@ live in [`architecture.md`](architecture.md); dated research is non-normative.
     both Svelte and Tailwind completion/resolve ownership, while formatter
     ownership changes from Svelte to Biome only under the explicit full-support
     project flag.
+16. The Astro ESLint and Biome fixtures each start exactly one Astro
+    structural primary plus the intended add-ons; both deliver independent
+    Astro type and lint diagnostics and preserve Astro and Tailwind
+    completion/resolve ownership.  The ESLint fixture leaves formatting with
+    Astro, while the explicit full-support Biome fixture gives formatting to
+    Biome.  No TypeScript, HTML, CSS, Vue, or Svelte child starts for the
+    `.astro` document.

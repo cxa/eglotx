@@ -8,6 +8,16 @@ All notable changes to Eglotx are documented in this file. The project uses
 
 ### Added
 
+- A zero-configuration Astro contact for `astro-ts-mode` and legacy
+  `astro-mode`.  It runs `astro-ls --stdio` as the sole structural primary,
+  supplies its required nearest project TypeScript SDK, and adds only
+  intent-gated ESLint, Tailwind CSS, Biome 2.3+, and GraphQL backends with
+  Astro-specific language and method boundaries.
+- Separate minimal Astro ESLint and Biome fixtures plus real-server E2E targets
+  for type/lint diagnostics, formatter ownership, and Astro/Tailwind
+  completion/resolve.
+- Preservation of static backend initialization options on the presets'
+  ordinary one-server Eglot fast path.
 - A zero-configuration Svelte contact for `svelte-mode` and `svelte-ts-mode`.
   It uses project-local `svelteserver` as the sole structural primary and adds
   only intent-gated ESLint, Tailwind CSS, Biome 2.3+, and GraphQL backends with
@@ -56,8 +66,8 @@ All notable changes to Eglotx are documented in this file. The project uses
   recursive scan, shell, package manager, config evaluation, or installation.
 - `eglotx-presets-mode` with nine owned contacts for Vue, Angular-aware JS/TS,
   HTML, CSS/SCSS/Less, JSON/JSONC, GraphQL, Python, Go, and Ruby.  One resolved
-  server returns ordinary argv; missing required tools delegate to the contact
-  that the mode shadowed.
+  server returns an ordinary Eglot contact; missing required tools delegate to
+  the contact that the mode shadowed.
 - Strong-intent add-ons and an opt-out for ESLint, Tailwind CSS, Biome,
   GraphQL, Angular, Ruff, GolangCI-Lint, and Sorbet; PATH alone does not opt an
   unrelated project into an add-on.

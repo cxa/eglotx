@@ -451,6 +451,207 @@ Return a cons of its executable and package directory."
         (should-not
          (memq :textDocument/formatting (plist-get backend :only)))))))
 
+(ert-deftest eglotx-presets-astro-builds-local-complementary-stack ()
+  (eglotx-presets-test--with-directory (root)
+    (eglotx-presets-test--with-directory (global-bin)
+      (let* ((package (expand-file-name "packages/app/" root))
+             (source (expand-file-name "src/pages/" package))
+             (astro (eglotx-presets-test--local-server package "astro-ls"))
+             (eslint
+              (eglotx-presets-test--local-server
+               package "vscode-eslint-language-server"))
+             (tailwind
+              (eglotx-presets-test--local-server
+               package "tailwindcss-language-server"))
+             (graphql
+              (eglotx-presets-test--local-server package "graphql-lsp"))
+             (tsdk
+              (file-name-as-directory
+               (expand-file-name "node_modules/typescript/lib" package))))
+        (make-directory source t)
+        (eglotx-presets-test--write-file
+         package "node_modules/typescript/lib/typescript.js" "")
+        (eglotx-presets-test--write-file
+         package "package.json"
+         (concat "{\"dependencies\":{\"astro\":\"5\","
+                 "\"tailwindcss\":\"4\"},"
+                 "\"devDependencies\":{\"eslint\":\"10\","
+                 "\"typescript\":\"6\"}}"))
+        (eglotx-presets-test--write-file
+         package "my-graphql.config.preview.mjs" "export default {};\n")
+        ;; Astro Language Server owns the embedded markup, styles, and
+        ;; TypeScript regions.  None of these structural servers may receive
+        ;; a complete .astro document.
+        (dolist (name '("astro-ls"
+                        "vscode-eslint-language-server"
+                        "tailwindcss-language-server"
+                        "graphql-lsp"
+                        "typescript-language-server"
+                        "vscode-html-language-server"
+                        "vscode-css-language-server"
+                        "vue-language-server"
+                        "svelteserver"))
+          (eglotx-presets-test--global-server global-bin name))
+        (let* ((default-directory source)
+               (exec-path (list global-bin))
+               (contact
+                (eglotx-presets-astro-contact
+                 nil (eglotx-presets-test--project root)))
+               (backends (eglotx-presets-test--backend-specs contact)))
+          (should (eq (car contact) 'eglotx-server))
+          (should
+           (equal (mapcar (lambda (backend) (plist-get backend :name))
+                          backends)
+                  '("astro" "eslint" "tailwindcss" "graphql")))
+          (dolist (backend backends)
+            (should (equal (plist-get backend :languages) '("astro"))))
+          (let ((primary (eglotx-presets-test--backend contact "astro")))
+            (should (equal (plist-get primary :command)
+                           (list astro "--stdio")))
+            (should
+             (equal (plist-get primary :initialization-options)
+                    (list :typescript (list :tsdk tsdk)))))
+          (should
+           (equal (plist-get
+                   (eglotx-presets-test--backend contact "eslint") :command)
+                  (list eslint "--stdio")))
+          (should
+           (equal (plist-get
+                   (eglotx-presets-test--backend contact "tailwindcss")
+                   :command)
+                  (list tailwind "--stdio")))
+          (should
+           (equal (plist-get
+                   (eglotx-presets-test--backend contact "graphql") :command)
+                  (list graphql "server" "-m" "stream" "--configDir"
+                        package))))))))
+
+(ert-deftest eglotx-presets-astro-single-server-keeps-initialized-fast-path ()
+  (eglotx-presets-test--with-directory (root)
+    (let ((astro (eglotx-presets-test--local-server root "astro-ls"))
+          (tsdk
+           (file-name-as-directory
+            (expand-file-name "node_modules/typescript/lib" root)))
+          (default-directory root)
+          (exec-path nil))
+      (eglotx-presets-test--write-file
+       root "node_modules/typescript/lib/tsserverlibrary.js" "")
+      (should
+       (equal
+        (eglotx-presets-astro-contact
+         nil (eglotx-presets-test--project root))
+        (list astro "--stdio"
+              :initializationOptions
+              (list :typescript (list :tsdk tsdk))))))))
+
+(ert-deftest eglotx-presets-astro-gates-biome-embedded-language-support ()
+  (eglotx-presets-test--with-directory (root)
+    (eglotx-presets-test--local-server root "astro-ls")
+    (eglotx-presets-test--write-file
+     root "node_modules/typescript/lib/typescript.js" "")
+    (eglotx-presets-test--biome-server root "2.2.4")
+    (eglotx-presets-test--write-file
+     root "package.json"
+     "{\"dependencies\":{\"astro\":\"5\"},\"devDependencies\":{\"@biomejs/biome\":\"2\",\"typescript\":\"6\"}}")
+    (let ((default-directory root)
+          (exec-path nil))
+      (let ((contact
+             (eglotx-presets-astro-contact
+              nil (eglotx-presets-test--project root))))
+        (should-not (eglotx-presets-test--backend contact "biome")))
+      (eglotx-presets-test--write-file
+       root "node_modules/@biomejs/biome/package.json"
+       "{\"name\":\"@biomejs/biome\",\"version\":\"2.3.0\"}")
+      (let* ((contact
+              (eglotx-presets-astro-contact
+               nil (eglotx-presets-test--project root)))
+             (backend (eglotx-presets-test--backend contact "biome")))
+        (should (equal (plist-get backend :languages) '("astro")))
+        (should (= (plist-get backend :priority) 70))
+        (should-not
+         (memq :textDocument/formatting (plist-get backend :only))))
+      (eglotx-presets-test--write-file
+       root "biome.json"
+       "{\"html\":{\"experimentalFullSupportEnabled\":true}}\n")
+      (let* ((contact
+              (eglotx-presets-astro-contact
+               nil (eglotx-presets-test--project root)))
+             (backend (eglotx-presets-test--backend contact "biome")))
+        (should (= (plist-get backend :priority) 120))
+        (should
+         (memq :textDocument/formatting (plist-get backend :only)))))))
+
+(ert-deftest eglotx-presets-astro-fixtures-isolate-optional-backends ()
+  (eglotx-presets-test--with-directory (tools)
+    (dolist (name '("astro-ls"
+                    "vscode-eslint-language-server"
+                    "tailwindcss-language-server"))
+      (eglotx-presets-test--local-server tools name))
+    (eglotx-presets-test--biome-server tools "2.5.4")
+    (let ((exec-path (list (expand-file-name "node_modules/.bin" tools))))
+      (dolist (case '(("astro_ts_tailwind_eslint"
+                       ("astro" "eslint" "tailwindcss")
+                       "eslint.config.js")
+                      ("astro_ts_tailwind_biome"
+                       ("astro" "biome" "tailwindcss")
+                       "biome.json")))
+        (eglotx-presets-test--with-directory (root)
+          (let ((fixture (eglotx-presets-test--project-fixture (car case))))
+            (dolist (name (list "package.json" (nth 2 case)))
+              (copy-file (expand-file-name name fixture)
+                         (expand-file-name name root))))
+          (eglotx-presets-test--write-file
+           root "node_modules/typescript/lib/typescript.js" "")
+          (make-directory (expand-file-name "src/pages/" root) t)
+          (let* ((default-directory (expand-file-name "src/pages/" root))
+                 (contact
+                  (eglotx-presets-astro-contact
+                   nil (eglotx-presets-test--project root))))
+            (should
+             (equal (mapcar (lambda (backend) (plist-get backend :name))
+                            (eglotx-presets-test--backend-specs contact))
+                    (nth 1 case)))))))))
+
+(ert-deftest eglotx-presets-astro-entry-is-specific ()
+  (should (eq (cdr eglotx-presets--astro-entry)
+              'eglotx-presets-astro-contact))
+  (should (< (cl-position eglotx-presets--astro-entry
+                          eglotx-presets--entries)
+             (cl-position eglotx-presets--html-entry
+                          eglotx-presets--entries)))
+  (let ((modes (car eglotx-presets--astro-entry)))
+    (dolist (mode '(astro-ts-mode astro-mode))
+      (should
+       (equal (assq mode modes) (list mode :language-id "astro"))))
+    (should-not (assq 'web-mode modes))))
+
+(ert-deftest eglotx-presets-astro-preserves-fallback-without-typescript-sdk ()
+  (eglotx-presets-test--with-directory (root)
+    (eglotx-presets-test--local-server root "astro-ls")
+    (let* ((fallback '("user-astro-language-server" "--stdio"))
+           (eglotx-presets--fallback-resolver
+            (lambda (_interactive _project) fallback))
+           (default-directory root)
+           (exec-path nil))
+      (should
+       (equal (eglotx-presets-astro-contact
+               nil (eglotx-presets-test--project root))
+              fallback)))))
+
+(ert-deftest eglotx-presets-astro-preserves-fallback-without-server ()
+  (eglotx-presets-test--with-directory (root)
+    (eglotx-presets-test--write-file
+     root "node_modules/typescript/lib/typescript.js" "")
+    (let* ((fallback '("user-astro-language-server" "--stdio"))
+           (eglotx-presets--fallback-resolver
+            (lambda (_interactive _project) fallback))
+           (default-directory root)
+           (exec-path nil))
+      (should
+       (equal (eglotx-presets-astro-contact
+               nil (eglotx-presets-test--project root))
+              fallback)))))
+
 (ert-deftest eglotx-presets-svelte-builds-local-complementary-stack ()
   (eglotx-presets-test--with-directory (root)
     (eglotx-presets-test--with-directory (global-bin)

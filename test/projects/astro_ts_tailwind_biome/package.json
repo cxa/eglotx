@@ -1,0 +1,17 @@
+{
+  "name": "eglotx-astro-ts-tailwind-biome-fixture",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "astro": "^7.1.1",
+    "tailwindcss": "^4.3.0"
+  },
+  "devDependencies": {
+    "@astrojs/language-server": "^2.16.12",
+    "@biomejs/biome": "^2.5.0",
+    "@tailwindcss/language-server": "^0.16.0",
+    "prettier": "^3.6.2",
+    "prettier-plugin-astro": "^0.14.1",
+    "typescript": "^6.0.3"
+  }
+}
