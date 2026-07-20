@@ -32,7 +32,7 @@ The global mode prepends the following entries to
 | Svelte | Svelte single-file components | `eglotx-presets-svelte-contact` |
 | Astro | Astro components | `eglotx-presets-astro-contact` |
 | Vue | Vue single-file components | `eglotx-presets-vue-contact` |
-| JavaScript/TypeScript (Angular-aware) | JavaScript, JSX, TypeScript, and TSX | `eglotx-presets-angular-contact` |
+| JavaScript/TypeScript/React (Angular-aware) | JavaScript, React JSX, TypeScript, and React TSX | `eglotx-presets-angular-contact` |
 | HTML | HTML | `eglotx-presets-html-contact` |
 | CSS | CSS, SCSS, and Less | `eglotx-presets-css-contact` |
 | JSON | JSON and JSON-with-comments | `eglotx-presets-json-contact` |
@@ -48,14 +48,24 @@ contact.  The Vue entry similarly maps `vue-ts-mode`, `vue-mode`, and
 `vue-html-mode` to `vue`.  None of these three component entries claims generic
 `web-mode`, ordinary `html-mode`, or Markdown buffers, where the embedded
 language cannot be inferred safely.  The single JavaScript/TypeScript entry
-always resolves the ordinary JS/TS stack and adds Angular only when Angular
-intent is present.  The Angular backend declares `:languages ("typescript")`,
-so JavaScript, JSX, and TSX stay in the same Eglot cohort without being sent to
-`ngserver`.  The Go entry keeps source, module, and workspace buffers in
-gopls's complete cohort, while the GolangCI add-on declares `:languages
-("go")` and never receives `go.mod` or `go.work` traffic.  Similarly, the CSS
-entry groups CSS, SCSS, and Less, but its Biome add-on accepts only `css`; the
-structural CSS primary and Tailwind remain available to the whole cohort.
+also covers React: `js-jsx-mode`, `rjsx-mode`, `js2-jsx-mode`, and
+`jtsx-jsx-mode` use `javascriptreact`; `tsx-ts-mode`,
+`typescript-tsx-mode`, `jtsx-tsx-mode`, and `tsx-mode` use
+`typescriptreact`.  Plain `js-mode`, `js-ts-mode`, and `js2-mode`, plus
+`typescript-mode`, `typescript-ts-mode`, and `jtsx-typescript-mode`, retain
+their non-React language IDs.  Specific JSX/TSX modes precede their generic
+parent modes so Eglot cannot collapse React buffers to `javascript` or
+`typescript`.
+
+That entry always resolves the ordinary JS/TS/React stack and adds Angular only
+when Angular intent is present.  The Angular backend declares `:languages
+("typescript")`, so JavaScript, JSX, and TSX stay in the same Eglot cohort
+without being sent to `ngserver`.  The Go entry keeps source, module, and
+workspace buffers in gopls's complete cohort, while the GolangCI add-on
+declares `:languages ("go")` and never receives `go.mod` or `go.work` traffic.
+Similarly, the CSS entry groups CSS, SCSS, and Less, but its Biome add-on
+accepts only `css`; the structural CSS primary and Tailwind remain available
+to the whole cohort.
 
 Each mapping supplies an exact LSP language ID.  `jsonc-mode` is deliberately
 listed before its JSON parent modes so Eglot preserves the `jsonc` ID.  Enabling
@@ -98,7 +108,9 @@ its exact ID ahead of the bundled entry while reusing the contact:
    . eglotx-presets-typescript-contact))
 ```
 
-The presets do not guess the language of arbitrary derived modes.
+The presets do not guess the language of arbitrary derived modes.  In
+particular, `web-mode` can represent React, ordinary HTML, and other template
+languages, so Eglotx does not assign it a global React language ID.
 
 ## Selection model
 
@@ -182,18 +194,18 @@ The Web catalog uses these commands and priorities:
 
 | Backend | Command | Priority | Role and contacts |
 | --- | --- | ---: | --- |
-| Biome | `biome lsp-proxy` | 120; 70 for partial Svelte/Astro/Vue support | JS/TS add-on with advertised capabilities; restricted lint/format add-on for Svelte, Astro, Vue, CSS, JSON/JSONC, and GraphQL |
+| Biome | `biome lsp-proxy` | 120; 70 for partial Svelte/Astro/Vue support | JS/TS/React add-on with advertised capabilities; restricted lint/format add-on for Svelte, Astro, Vue, CSS, JSON/JSONC, and GraphQL |
 | Angular Language Service | `ngserver --stdio --tsProbeLocations DIR --ngProbeLocations DIR` | 120 | TypeScript-only framework add-on |
 | Vue Language Server | `vue-language-server --stdio [--tsdk=DIR]` | 110 | required Vue SFC primary and private-notification source |
 | Svelte Language Server | `svelteserver --stdio` | 100 | required Svelte SFC primary; embeds Svelte, HTML, CSS, and JS/TS support |
 | Astro Language Server | `astro-ls --stdio` | 100 | required Astro primary; embeds Astro, HTML, CSS, and JS/TS support and requires `initializationOptions.typescript.tsdk` |
-| TypeScript Language Server | `typescript-language-server --stdio` | 100 | required JS/TS primary; required Vue semantic companion with `@vue/typescript-plugin`; never an Astro- or Svelte-document backend |
+| TypeScript Language Server | `typescript-language-server --stdio` | 100 | required JS/TS/React primary; required Vue semantic companion with `@vue/typescript-plugin`; never an Astro- or Svelte-document backend |
 | HTML Language Server | `vscode-html-language-server --stdio`, then `html-languageserver --stdio` | 100 | alternative HTML primaries |
 | CSS Language Server | `vscode-css-language-server --stdio`, then `css-languageserver --stdio` | 100 | alternative CSS/SCSS/Less primaries |
 | JSON Language Server | `vscode-json-language-server --stdio`, `vscode-json-languageserver --stdio`, then `json-languageserver --stdio` | 100 | alternative JSON primaries |
-| GraphQL Language Service | `graphql-lsp server -m stream --configDir DIR` | 100 standalone; 50 embedded | GraphQL primary or Svelte/Astro/Vue/JS/TS embedded-language add-on |
-| vscode-eslint | `vscode-eslint-language-server --stdio` | 80 | Svelte, Astro, Vue, or JS/TS lint and code-action add-on |
-| Tailwind CSS Language Server | `tailwindcss-language-server --stdio` | 60 | Svelte, Astro, Vue, JS/TS, HTML, or CSS/SCSS/Less utility-language add-on |
+| GraphQL Language Service | `graphql-lsp server -m stream --configDir DIR` | 100 standalone; 50 embedded | GraphQL primary or Svelte/Astro/Vue/JS/TS/React embedded-language add-on |
+| vscode-eslint | `vscode-eslint-language-server --stdio` | 80 | Svelte, Astro, Vue, or JS/TS/React lint and code-action add-on |
+| Tailwind CSS Language Server | `tailwindcss-language-server --stdio` | 60 | Svelte, Astro, Vue, JS/TS/React, HTML, or CSS/SCSS/Less utility-language add-on |
 
 ### Svelte SFCs
 
@@ -358,11 +370,13 @@ HTML buffer would violate the document-intent boundary. See the
 [Vue ecosystem research](research/vue-ecosystem-presets.md) for the upstream
 protocol and detection evidence.
 
-### TypeScript, ESLint, Tailwind, and Biome
+### JavaScript, TypeScript, React, ESLint, Tailwind, and Biome
 
-The generic JS/TS recipe always requires TypeScript Language Server.  ESLint,
-Tailwind CSS, Biome, and GraphQL join it independently when both executable
-resolution and their own intent gate succeed.
+The generic JS/TS/React recipe always requires TypeScript Language Server.
+React is part of this cohort rather than a separate preset, so JSX and TSX get
+the same intent-gated ESLint, Tailwind CSS, Biome, and GraphQL add-ons.  Each
+add-on joins independently when both executable resolution and its own intent
+gate succeed.
 
 ESLint recognizes `eslintConfig`, dependencies named `eslint`, `eslint-*`,
 `@eslint/*`, or `@typescript-eslint/*`, a project-local server, legacy
@@ -379,9 +393,9 @@ installed ESLint generation to select its supported flat or legacy behavior.
 Invalid ESLint configuration can still suppress rule diagnostics and should
 be reproducible with the project's ESLint CLI.
 
-In the generic JS/TS contact, ESLint and Tailwind use the capabilities they
-actually negotiate; Eglotx merges collection results and uses the documented
-priorities for singleton methods.  Embedded Svelte/Astro/Vue contacts
+In the generic JS/TS/React contact, ESLint and Tailwind use the capabilities
+they actually negotiate; Eglotx merges collection results and uses the
+documented priorities for singleton methods.  Embedded Svelte/Astro/Vue contacts
 additionally apply role-specific `:only` lists so these add-ons cannot claim
 unrelated component structure.  ESLint formatting is disabled in the supplied
 workspace settings, while Tailwind contributes class completion/resolve,
@@ -404,7 +418,7 @@ Biome activates for the exact `@biomejs/biome` package, a project-local
 backups, or arbitrary `biome.config.*` files.  Biome receives an empty JSON
 settings object by default while preserving a user's `biome` settings.
 
-In the JS/TS cohort Biome keeps its advertised methods and priority
+In the JS/TS/React cohort Biome keeps its advertised methods and priority
 120, so a project that adopts Biome gives it precedence for supported
 singleton operations such as formatting; diagnostics and collection methods
 still combine according to core policy.  In CSS, JSON/JSONC, and GraphQL
@@ -422,7 +436,7 @@ in `package.json`.  Merely depending on the `graphql` runtime package is not
 intent.  The containing config directory is passed explicitly as
 `--configDir DIR`.  In standalone GraphQL buffers, GraphQL Language Service is
 the priority-100 required primary and an adopted Biome can supply restricted
-lint and format methods at priority 120.  In Svelte, Astro, Vue, and JS/TS
+lint and format methods at priority 120.  In Svelte, Astro, Vue, and JS/TS/React
 buffers it is an optional priority-50 add-on restricted to completion, hover,
 definitions, references, symbols, code actions, and diagnostics; it never
 claims formatting.
@@ -430,12 +444,13 @@ claims formatting.
 GraphQL Config is a strong project-level intent signal, but contact discovery
 does not parse its document globs or scan source text.  Document matching is
 left to GraphQL Language Service.  Conservatively, a project whose config only
-declares a schema can therefore start one GraphQL process for a JS/TS cohort;
-the server may then ignore documents that do not match its own configuration.
+declares a schema can therefore start one GraphQL process for a JS/TS/React
+cohort; the server may then ignore documents that do not match its own
+configuration.
 
 Angular activates from `angular.json`, an exact `@angular/core` dependency, or
-a project-local `ngserver`.  It is part of the single JS/TS contact but accepts
-only the `typescript` language ID.  The add-on is restricted to Angular-aware
+a project-local `ngserver`.  It is part of the single JS/TS/React contact but
+accepts only the `typescript` language ID.  The add-on is restricted to Angular-aware
 completion, hover, signature, navigation, references, implementation, rename,
 code actions, diagnostics, and commands; formatting and general workspace
 ownership stay with the base stack.  Probe locations are derived from the
@@ -545,9 +560,10 @@ RuboCop or Syntax Tree integration.
 ```
 
 This option does not disable a recipe's primary.  For example, `graphql`
-disables the embedded JS/TS add-on but not GraphQL Language Service when it is
-the standalone GraphQL primary.  To select a different unsupported primary or
-replace a whole recipe, install a user contact ahead of the bundled entry.
+disables the embedded JS/TS/React add-on but not GraphQL Language Service when
+it is the standalone GraphQL primary.  To select a different unsupported
+primary or replace a whole recipe, install a user contact ahead of the bundled
+entry.
 
 There is no process-wide discovery cache.  Eglot keeps a resolved contact for
 the current session, including across `eglot-reconnect`.  After installing or
@@ -606,8 +622,8 @@ are opt-in:
 
 | Target | Installed toolchain exercised |
 | --- | --- |
-| `make test-eslint-e2e` | Three resolved backends, TypeScript/ESLint diagnostics, Tailwind completion/resolve, and TypeScript formatter ownership |
-| `make test-biome-e2e` | Three resolved backends, TypeScript/Biome diagnostics, Tailwind completion/resolve, and Biome formatter ownership |
+| `make test-eslint-e2e` | Three resolved backends, React TSX TypeScript/ESLint diagnostics, Tailwind completion/resolve, and TypeScript formatter ownership |
+| `make test-biome-e2e` | Three resolved backends, React TSX TypeScript/Biome diagnostics, Tailwind completion/resolve, and Biome formatter ownership |
 | `make test-vue-e2e` | Project-local VLS, TLS, ESLint, and Tailwind; the VLS/TLS bridge; TypeScript and ESLint diagnostics |
 | `make test-svelte-eslint-e2e` | Project-local Svelte, ESLint, and Tailwind; type/ESLint diagnostics, Svelte and Tailwind completion/resolve ownership, rune validity, and Svelte formatting |
 | `make test-svelte-biome-e2e` | Project-local Svelte, Biome, and Tailwind; type/Biome diagnostics, Svelte and Tailwind completion/resolve ownership, rune validity, and explicit Biome formatting |

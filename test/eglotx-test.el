@@ -536,6 +536,40 @@ REQUEST-DISPATCHER handles child-to-client requests when supplied."
         (should-not (eq copy languages))
         (should-not (eq (cdar copy) (cdar languages)))))))
 
+(ert-deftest eglotx-react-preset-language-ids-reach-backends ()
+  (let* ((eglot-server-programs (list eglotx-presets--typescript-entry))
+         (languages (car (eglot--lookup-mode 'rjsx-mode))))
+    (eglotx-test--with-server
+        (server
+         (list (eglotx-test--spec "primary" :priority 100)
+               (eglotx-test--spec "secondary" :priority 10)))
+      (setf (eglot--languages server) languages)
+      (eglotx-test--initialize server)
+      (dolist (case '((rjsx-mode "javascriptreact" "component.jsx")
+                      (tsx-mode "typescriptreact" "component.tsx")))
+        (let* ((mode (nth 0 case))
+               (expected (nth 1 case))
+               (uri (concat "file:///eglotx-test/" (nth 2 case)))
+               (language
+                (cl-loop for (candidate . language) in languages
+                         when (provided-mode-derived-p mode candidate)
+                         return language)))
+          (should (equal language expected))
+          (jsonrpc-notify
+           server :textDocument/didOpen
+           (list :textDocument
+                 (list :uri uri :languageId language :version 0 :text "")))
+          (should
+           (eglotx-test--wait-until
+            (lambda ()
+              (let* ((state (eglotx-test--backend-state server "primary"))
+                     (document
+                      (plist-get (plist-get state :lastDidOpen)
+                                 :textDocument)))
+                (and (equal (plist-get document :uri) uri)
+                     (equal (plist-get document :languageId) expected))))
+            2.0)))))))
+
 (ert-deftest eglotx-did-open-preserves-eglot-language-id ()
   (eglotx-test--with-server
       (server

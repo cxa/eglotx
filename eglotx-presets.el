@@ -169,14 +169,21 @@
 
 (defconst eglotx-presets--typescript-entry
   '(((js-jsx-mode :language-id "javascriptreact")
+     (rjsx-mode :language-id "javascriptreact")
+     (js2-jsx-mode :language-id "javascriptreact")
+     (jtsx-jsx-mode :language-id "javascriptreact")
+     (jtsx-tsx-mode :language-id "typescriptreact")
+     (tsx-mode :language-id "typescriptreact")
      (tsx-ts-mode :language-id "typescriptreact")
      (typescript-tsx-mode :language-id "typescriptreact")
+     (js2-mode :language-id "javascript")
      (js-mode :language-id "javascript")
      (js-ts-mode :language-id "javascript")
+     (jtsx-typescript-mode :language-id "typescript")
      (typescript-mode :language-id "typescript")
      (typescript-ts-mode :language-id "typescript"))
     . eglotx-presets-angular-contact)
-  "Entry installed for one JavaScript/TypeScript project cohort.")
+  "Entry installed for one JavaScript/TypeScript/React project cohort.")
 
 (defconst eglotx-presets--svelte-entry
   '(((svelte-ts-mode :language-id "svelte")
@@ -1302,12 +1309,13 @@ an outer framework recipe can decide whether to preserve an earlier contact."
 
 ;;;###autoload
 (defun eglotx-presets-typescript-contact (&optional interactive project)
-  "Return a project-aware Eglot contact for TypeScript web development.
+  "Return a project-aware Eglot contact for JavaScript, TypeScript, and React.
 
-PROJECT defaults to the current project.  TypeScript is the required type
-server.  ESLint, Tailwind CSS, and Biome join only when project signals or
-project-local server executables show intent.  GraphQL additionally requires
-structural GraphQL configuration; a local `graphql-lsp' alone is not intent.
+PROJECT defaults to the current project.  TypeScript is the required language
+server for JavaScript, JSX, TypeScript, and TSX.  ESLint, Tailwind CSS, and
+Biome join only when project signals or project-local server executables show
+intent.  GraphQL additionally requires structural GraphQL configuration; a
+local `graphql-lsp' alone is not intent.
 Tailwind v4 uses its core manifest dependency as the cheap signal and leaves
 CSS entrypoint discovery to the language server; legacy config markers remain
 a v3 fallback.  Project-local executables win over PATH when

@@ -2115,6 +2115,28 @@ Return a cons of its executable and package directory."
         (should
          (member '(tsx-ts-mode :language-id "typescriptreact") modes))))))
 
+(ert-deftest eglotx-presets-react-modes-use-exact-language-ids ()
+  (let ((modes (car eglotx-presets--typescript-entry)))
+    (dolist (mode '(js-jsx-mode rjsx-mode js2-jsx-mode
+                    jtsx-jsx-mode))
+      (should
+       (member (list mode :language-id "javascriptreact") modes)))
+    (dolist (mode '(tsx-ts-mode typescript-tsx-mode
+                    jtsx-tsx-mode tsx-mode))
+      (should
+       (member (list mode :language-id "typescriptreact") modes)))
+    (should (member '(js2-mode :language-id "javascript") modes))
+    (should
+     (member '(jtsx-typescript-mode :language-id "typescript") modes))
+    (dolist (pair '((js-jsx-mode . js-mode)
+                    (rjsx-mode . js2-mode)
+                    (js2-jsx-mode . js2-mode)
+                    (jtsx-jsx-mode . js-ts-mode)
+                    (jtsx-tsx-mode . tsx-ts-mode)
+                    (tsx-mode . tsx-ts-mode)))
+      (should (< (cl-position (car pair) modes :key #'car)
+                 (cl-position (cdr pair) modes :key #'car))))))
+
 (ert-deftest eglotx-presets-angular-contact-delegates-outside-angular ()
   (eglotx-presets-test--with-directory (root)
     (let ((typescript
@@ -2237,15 +2259,36 @@ Return a cons of its executable and package directory."
                       (car eglotx-presets--json-entry))))))
 
 (ert-deftest eglotx-presets-derived-modes-use-specific-language-ids ()
-  (let ((jsonc-plist (copy-sequence (symbol-plist 'jsonc-mode)))
-        (scss-plist (copy-sequence (symbol-plist 'scss-mode))))
+  (let* ((parents '((jsonc-mode . json-mode)
+                    (scss-mode . css-mode)
+                    (js2-mode . js-mode)
+                    (js2-jsx-mode . js2-mode)
+                    (rjsx-mode . js2-mode)
+                    (jtsx-jsx-mode . js-ts-mode)
+                    (jtsx-tsx-mode . tsx-ts-mode)
+                    (tsx-mode . tsx-ts-mode)))
+         (saved-plists
+          (mapcar (lambda (entry)
+                    (cons (car entry)
+                          (copy-sequence (symbol-plist (car entry)))))
+                  parents)))
     (unwind-protect
         (progn
-          (put 'jsonc-mode 'derived-mode-parent 'json-mode)
-          (put 'scss-mode 'derived-mode-parent 'css-mode)
+          (dolist (entry parents)
+            (put (car entry) 'derived-mode-parent (cdr entry)))
           (dolist (case
                    `((jsonc-mode ,eglotx-presets--json-entry "jsonc")
-                     (scss-mode ,eglotx-presets--css-entry "scss")))
+                     (scss-mode ,eglotx-presets--css-entry "scss")
+                     (js2-jsx-mode ,eglotx-presets--typescript-entry
+                                   "javascriptreact")
+                     (rjsx-mode ,eglotx-presets--typescript-entry
+                                "javascriptreact")
+                     (jtsx-jsx-mode ,eglotx-presets--typescript-entry
+                                    "javascriptreact")
+                     (jtsx-tsx-mode ,eglotx-presets--typescript-entry
+                                    "typescriptreact")
+                     (tsx-mode ,eglotx-presets--typescript-entry
+                               "typescriptreact")))
             (let* ((mode (nth 0 case))
                    (eglot-server-programs (list (nth 1 case)))
                    (languages (car (eglot--lookup-mode mode)))
@@ -2254,8 +2297,8 @@ Return a cons of its executable and package directory."
                              when (provided-mode-derived-p mode candidate)
                              return language)))
               (should (equal actual (nth 2 case))))))
-      (setplist 'jsonc-mode jsonc-plist)
-      (setplist 'scss-mode scss-plist))))
+      (dolist (entry saved-plists)
+        (setplist (car entry) (cdr entry))))))
 
 (ert-deftest eglotx-presets-supports-emacs-29-executable-suffix-variable ()
   (let ((exec-suffixes '(".cmd")))

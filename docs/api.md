@@ -143,8 +143,8 @@ autoloaded contacts are `eglotx-presets-svelte-contact`,
 `eglotx-presets-css-contact`, `eglotx-presets-json-contact`,
 `eglotx-presets-graphql-contact`, `eglotx-presets-python-contact`,
 `eglotx-presets-go-contact`, and `eglotx-presets-ruby-contact`.
-`eglotx-presets-typescript-contact` is also public for a manual generic JS/TS
-mapping without the Angular detector.
+`eglotx-presets-typescript-contact` is also public for a manual generic
+JS/TS/React mapping without the Angular detector.
 
 Each contact accepts optional `INTERACTIVE` and `PROJECT` arguments.  `PROJECT`
 defaults to the current project.  Missing required components first delegate

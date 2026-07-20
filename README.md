@@ -71,13 +71,14 @@ versions are older than the declared minimums.  Then put the checkout on
 
 ## Preset behavior
 
-The global mode covers Svelte, Astro, Vue, JavaScript/TypeScript, HTML,
-CSS/SCSS/Less, JSON/JSONC, GraphQL, Python, Go source/module/workspace files,
-and Ruby.  A recipe normally selects one structural primary and adds only
-intent-backed complementary servers such as Ruff, GolangCI, Sorbet, ESLint,
-Tailwind CSS, Biome, GraphQL, or Angular.  Embedded component recipes avoid
-duplicating services already supplied by their framework server; Vue keeps its
-required VLS/TLS/plugin stack because that is an upstream protocol requirement.
+The global mode covers Svelte, Astro, Vue, JavaScript/TypeScript (including
+React JSX and TSX), HTML, CSS/SCSS/Less, JSON/JSONC, GraphQL, Python, Go
+source/module/workspace files, and Ruby.  A recipe normally selects one
+structural primary and adds only intent-backed complementary servers such as
+Ruff, GolangCI, Sorbet, ESLint, Tailwind CSS, Biome, GraphQL, or Angular.
+Embedded component recipes avoid duplicating services already supplied by
+their framework server; Vue keeps its required VLS/TLS/plugin stack because
+that is an upstream protocol requirement.
 
 Discovery prefers the nearest executable in the ecosystem's project directory
 (`node_modules/.bin`, a Python virtual environment, a Ruby binstub directory,
