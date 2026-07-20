@@ -31,7 +31,7 @@ catalog:
 ```elisp
 (use-package eglotx
   :vc (:url "https://github.com/cxa/eglotx.git"
-       :rev "v0.1.1")
+       :rev :last-release)
   :demand t
   :config
   (require 'eglotx-presets)
@@ -39,11 +39,11 @@ catalog:
 ```
 
 The declaration uses `eglotx`, whose main file carries the package metadata;
-`eglotx-presets` is a secondary feature in the same checkout.  Replace the
-explicit tag with `:last-release` to follow future releases, or with `:newest`
-to follow the development branch.  This README describes `main`; features
-listed under [Unreleased](CHANGELOG.md) require `:newest` until the next
-release.
+`eglotx-presets` is a secondary feature in the same checkout.  `:last-release`
+selects the latest revision that changed the main file's `Version:` header.
+Use `:newest` to follow the development branch, or an explicit tag string to
+pin one immutable release.  This README describes `main`; features listed under
+[Unreleased](CHANGELOG.md) require `:newest` until the next release.
 
 The built-in `use-package` supports `:vc` on Emacs 30.1 and newer.  Emacs 29's
 built-in version does not; either update `use-package` from GNU ELPA or install
@@ -54,7 +54,7 @@ the VC package once before using an ordinary declaration:
 (unless (package-installed-p 'eglotx)
   (package-vc-install
    '(eglotx :url "https://github.com/cxa/eglotx.git")
-   "v0.1.1"))
+   :last-release))
 ```
 
 ### Source checkout

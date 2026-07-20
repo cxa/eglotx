@@ -114,12 +114,12 @@ release-check:
 	  { echo "eglotx.el Version header does not match" >&2; exit 1; }
 	@grep -Fqx '## [$(RELEASE_VERSION)] - $(RELEASE_DATE)' CHANGELOG.md || \
 	  { echo "CHANGELOG.md release heading does not match" >&2; exit 1; }
-	@grep -Fq ':rev "v$(RELEASE_VERSION)"' README.md || \
-	  { echo "README.md use-package release reference does not match" >&2; \
+	@grep -Fq ':rev :last-release' README.md || \
+	  { echo "README.md use-package recipe must use :last-release" >&2; \
 	    exit 1; }
 	@sed -n '/(package-vc-install/,/))/p' README.md | \
-	  grep -Fq '"v$(RELEASE_VERSION)"' || \
-	  { echo "README.md package-vc release reference does not match" >&2; \
+	  grep -Fq ':last-release' || \
+	  { echo "README.md package-vc recipe must use :last-release" >&2; \
 	    exit 1; }
 
 clean:

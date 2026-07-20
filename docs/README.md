@@ -23,8 +23,8 @@ change.  Research files should retain their historical claims and instead
 receive a status note pointing to the resulting current behavior.
 
 The README in `main` describes the development branch.  Its stable installation
-example remains pinned to the latest release; `CHANGELOG.md` identifies features
-that still require `:rev :newest`.
+examples resolve the latest release through `:last-release`; `CHANGELOG.md`
+identifies features that still require `:rev :newest`.
 
 The package header and latest release entry must use the same version.  New
 user-visible work is recorded under `Unreleased` until the next version is

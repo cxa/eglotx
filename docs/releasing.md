@@ -2,8 +2,9 @@
 
 Eglotx is distributed directly from its Git repository as one multi-file Emacs
 VC package whose main file is `eglotx.el`.  A signed tag and GitHub Release
-identify an immutable source revision for users and explicit `:rev` recipes;
-publishing to GNU ELPA, NonGNU ELPA, or MELPA is a separate submission process.
+identify an immutable source revision; stable installation recipes use
+`:last-release`, while publishing to GNU ELPA, NonGNU ELPA, or MELPA is a
+separate submission process.
 
 ## Version invariants
 
@@ -14,16 +15,16 @@ publishing to GNU ELPA, NonGNU ELPA, or MELPA is a separate submission process.
   development.  Bump it only when cutting the next release: `package-vc`'s
   `:last-release` means the last commit that changed the main file's version
   header, not simply the newest Git tag.
-- Both stable installation examples in `README.md` pin the same release tag.
-  Development-branch instructions use `:newest` explicitly.
+- Both stable installation examples in `README.md` use `:last-release` and do
+  not change for each version.  Development-branch instructions use `:newest`
+  explicitly.
 - Keep future user-visible work under `Unreleased` until it is moved into a
   dated release section.
 
 ## Preflight
 
 1. Choose the release version and date, then update the package header,
-   Changelog heading, both README stable-install tags, and release notes
-   together.
+   Changelog heading, and release notes together.
    Verify the synchronized values in the same shell session:
 
    ```sh

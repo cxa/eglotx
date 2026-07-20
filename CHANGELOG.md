@@ -6,6 +6,11 @@ All notable changes to Eglotx are documented in this file. The project uses
 
 ## [Unreleased]
 
+### Changed
+
+- Stable `use-package :vc` and direct `package-vc-install` examples now use
+  `:last-release` instead of embedding a version tag.
+
 ## [0.1.1] - 2026-07-20
 
 ### Added
