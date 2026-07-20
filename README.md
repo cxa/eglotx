@@ -265,14 +265,24 @@ changing a hot path.  Maintainers cut versions using
 
 ## Scope and prior art
 
-Eglotx is specifically an Eglot facade, not a general stdio proxy. The design
-builds on ideas explored by
-[rassumfrassum](https://github.com/joaotavora/rassumfrassum),
-[lspx](https://github.com/thefrontside/lspx), and
-[cxa/lspx](https://github.com/cxa/lspx), while removing the external runtime
-and extra transport required by an executable multiplexer. The earlier
-[eglot-lspx](https://github.com/cxa/eglot-lspx) integration informed the Eglot
-contact API. The state model also follows the useful boundary in
+Eglotx is specifically an Eglot facade, not a general stdio proxy. It is the
+maintained successor to the now-archived
+[cxa/lspx](https://github.com/cxa/lspx) fork and
+[eglot-lspx](https://github.com/cxa/eglot-lspx) integration, carrying their
+multi-server Eglot use case and lessons forward as a native, in-process Emacs
+Lisp implementation. It does not depend on the earlier stack's external
+runtime, extra transport, or private diagnostics extension.
+
+Its high-volume Tailwind completion path also incorporates lessons from the
+now-archived
+[cape-tailwindcss](https://github.com/cxa/cape-tailwindcss) experiment, while
+retaining Eglot's ordinary CAPF and backend completion/resolve semantics.
+Eglotx does not expose cape-tailwindcss's standalone CAPF API.
+
+The design also builds on ideas explored by
+[rassumfrassum](https://github.com/joaotavora/rassumfrassum) and upstream
+[lspx](https://github.com/thefrontside/lspx). The state model follows the
+useful boundary in
 [lsp-mode](https://github.com/emacs-lsp/lsp-mode): each server connection owns
 its diagnostics and follow-up state, and the UI-facing view is aggregated only
 after those source states have been updated. Eglotx makes that implicit

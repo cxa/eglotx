@@ -11,6 +11,10 @@ All notable changes to Eglotx are documented in this file. The project uses
 - The manual core example now covers both Python major modes and explicitly
   distinguishes static contacts from preset discovery, fallback, optional
   backend gating, and the native single-server fast path.
+- The project history now identifies Eglotx as the maintained successor to the
+  archived `cxa/lspx` and `eglot-lspx` stack, and records the performance
+  lessons carried forward from `cape-tailwindcss` without implying code or API
+  compatibility.
 
 ## [0.1.2] - 2026-07-20
 
