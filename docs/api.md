@@ -123,8 +123,9 @@ Use `M-x customize-group RET eglotx` for the core and
 
 ## Preset contacts
 
-`eglotx-presets-mode` globally installs nine project-aware entries.  Their
-autoloaded contacts are `eglotx-presets-vue-contact`,
+`eglotx-presets-mode` globally installs ten project-aware entries.  Their
+autoloaded contacts are `eglotx-presets-svelte-contact`,
+`eglotx-presets-vue-contact`,
 `eglotx-presets-angular-contact`, `eglotx-presets-html-contact`,
 `eglotx-presets-css-contact`, `eglotx-presets-json-contact`,
 `eglotx-presets-graphql-contact`, `eglotx-presets-python-contact`,

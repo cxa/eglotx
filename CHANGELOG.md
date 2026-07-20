@@ -6,6 +6,15 @@ All notable changes to Eglotx are documented in this file. The project uses
 
 ## [Unreleased]
 
+### Added
+
+- A zero-configuration Svelte contact for `svelte-mode` and `svelte-ts-mode`.
+  It uses project-local `svelteserver` as the sole structural primary and adds
+  only intent-gated ESLint, Tailwind CSS, Biome 2.3+, and GraphQL backends with
+  Svelte-specific language and method boundaries.
+- Separate minimal Svelte ESLint and Biome fixtures plus real-server E2E targets
+  for diagnostics, formatter ownership, and Tailwind completion/resolve.
+
 ## [0.1.0] - 2026-07-19
 
 ### Added

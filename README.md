@@ -69,7 +69,7 @@ versions are older than the declared minimums.  Then put the checkout on
 
 ## Preset behavior
 
-The global mode installs nine project-aware contacts: Vue SFCs, one
+The global mode installs ten project-aware contacts: Svelte and Vue SFCs, one
 Angular-aware JavaScript/TypeScript cohort, HTML, CSS/SCSS/Less, JSON/JSONC,
 GraphQL, Python, the complete Go source/module/workspace cohort, and Ruby.
 Most contacts choose one structural primary and add only intent-backed
@@ -80,12 +80,21 @@ prefers the nearest executable in the ecosystem's project directory
 (`node_modules/.bin`, a Python virtual environment, a Ruby binstub directory,
 or a bounded Go project bin directory) before falling back to PATH.
 
+For `.svelte` buffers, `svelteserver` is the sole structural primary because it
+already embeds Svelte, TypeScript/JavaScript, HTML, and CSS support.  The preset
+does not duplicate those roles with TypeScript, HTML, or CSS Language Server;
+it adds only intent-gated ESLint, Tailwind CSS, Biome 2.3+, and GraphQL.  Biome
+becomes the formatter only when the project explicitly enables its experimental
+full HTML support.  SvelteKit needs no separate LSP process.
+
 Start the session normally with `M-x eglot` or `eglot-ensure`.  A bundled preset
 contact that resolves to one backend returns an ordinary Eglot argv, so
 single-server projects skip the multiplexer overhead.  Optional add-ons are not
 enabled just because a matching executable happens to be on PATH: they also
 need a strong project signal such as a supported config, manifest declaration,
-or project-local executable.
+or project-local executable.  Embedded Svelte/Vue ESLint is stricter: its
+project-local binary may come from a shared HTML/CSS package, so an ESLint
+config or dependency is still required.
 
 Enabling the mode snapshots the matching contacts that already precede the
 bundled catalog.  If a recipe cannot resolve its supported required primary or
@@ -211,8 +220,9 @@ make deps-corfu-e2e # install optional Corfu/Orderless E2E dependencies
 make compile    # byte-compile with warnings promoted to errors
 make test       # run the ERT integration suite
 make check      # clean, compile, and test
-make test-presets-e2e # opt-in real ESLint/Biome/Vue preset smoke tests
+make test-presets-e2e # opt-in real ESLint/Biome/Vue/Svelte preset smoke tests
 make test-vue-e2e # real Vue/TypeScript bridge + ESLint + Tailwind smoke test
+make test-svelte-e2e # real Svelte + ESLint/Biome + Tailwind smoke tests
 make test-corfu-e2e # real Tailwind -> Eglot -> Orderless -> Corfu insertion
 make benchmark  # run repeatable protocol hot-path microbenchmarks
 ```

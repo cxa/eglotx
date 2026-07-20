@@ -121,13 +121,51 @@
     :workspace/diagnostic)
   "Lint and format methods Biome may own beside a structural primary.")
 
-(defconst eglotx-presets--biome-vue-partial-only
+(defconst eglotx-presets--biome-embedded-partial-only
   (cl-remove-if
    (lambda (method)
      (memq method '(:textDocument/formatting
                     :textDocument/rangeFormatting)))
    eglotx-presets--biome-addon-only)
-  "Safe Biome methods when full experimental Vue support is not enabled.")
+  "Safe Biome methods for an embedded language in partial-support mode.")
+
+(defconst eglotx-presets--eslint-addon-only
+  '(:textDocument/didOpen
+    :textDocument/didChange
+    :textDocument/didClose
+    :textDocument/didSave
+    :workspace/didChangeConfiguration
+    :workspace/didChangeWatchedFiles
+    :workspace/didChangeWorkspaceFolders
+    :workspace/configuration
+    :textDocument/codeAction
+    :codeAction/resolve
+    :textDocument/diagnostic
+    :workspace/diagnostic
+    :workspace/executeCommand)
+  "Methods owned by an ESLint backend beside a structural primary.")
+
+(defconst eglotx-presets--tailwind-embedded-only
+  '(:textDocument/didOpen
+    :textDocument/didChange
+    :textDocument/didClose
+    :textDocument/didSave
+    :workspace/didChangeConfiguration
+    :workspace/didChangeWatchedFiles
+    :workspace/didChangeWorkspaceFolders
+    :workspace/configuration
+    :textDocument/completion
+    :completionItem/resolve
+    :textDocument/hover
+    :textDocument/codeAction
+    :codeAction/resolve
+    :textDocument/documentColor
+    :textDocument/colorPresentation
+    :textDocument/codeLens
+    :textDocument/documentLink
+    :textDocument/diagnostic
+    :workspace/diagnostic)
+  "Methods owned by Tailwind beside an embedded-language primary.")
 
 (defconst eglotx-presets--typescript-entry
   '(((js-jsx-mode :language-id "javascriptreact")
@@ -139,6 +177,12 @@
      (typescript-ts-mode :language-id "typescript"))
     . eglotx-presets-angular-contact)
   "Entry installed for one JavaScript/TypeScript project cohort.")
+
+(defconst eglotx-presets--svelte-entry
+  '(((svelte-ts-mode :language-id "svelte")
+     (svelte-mode :language-id "svelte"))
+    . eglotx-presets-svelte-contact)
+  "Entry installed for Svelte single-file components.")
 
 (defconst eglotx-presets--vue-entry
   '(((vue-ts-mode :language-id "vue")
@@ -175,7 +219,8 @@
   "Entry installed for standalone GraphQL buffers.")
 
 (defconst eglotx-presets--entries
-  (list eglotx-presets--vue-entry
+  (list eglotx-presets--svelte-entry
+        eglotx-presets--vue-entry
         eglotx-presets--typescript-entry
         eglotx-presets--html-entry
         eglotx-presets--css-entry
@@ -196,7 +241,8 @@
   "Non-nil while resolving a contact preserved by the presets mode.")
 
 (defconst eglotx-presets--contact-functions
-  '(eglotx-presets-vue-contact
+  '(eglotx-presets-svelte-contact
+    eglotx-presets-vue-contact
     eglotx-presets-angular-contact
     eglotx-presets-typescript-contact
     eglotx-presets-html-contact
@@ -210,7 +256,7 @@
 
 (cl-defstruct (eglotx-presets--intent
                (:constructor eglotx-presets--intent-create))
-  "Project intent discovered for optional TypeScript preset backends."
+  "Project intent discovered for optional Web and Node preset backends."
   eslint
   tailwind
   biome)
@@ -251,9 +297,12 @@
   (when-let* ((extension (file-name-extension name)))
     (string-match-p eglotx-presets--script-extension-regexp extension)))
 
-(defun eglotx-presets--eslint-marker-p (name)
-  "Return non-nil when file NAME indicates an ESLint configuration."
-  (or (member name '(".eslintrc" ".eslintignore"))
+(defun eglotx-presets--eslint-marker-p (name &optional config-only)
+  "Return non-nil when file NAME indicates ESLint use.
+
+When CONFIG-ONLY is non-nil, exclude the legacy ignore-only signal."
+  (or (string= name ".eslintrc")
+      (and (not config-only) (string= name ".eslintignore"))
       (and (string-prefix-p ".eslintrc." name)
            (when-let* ((extension (file-name-extension name)))
              (string-match-p
@@ -341,15 +390,18 @@
     (file-error nil)))
 
 (defun eglotx-presets--directory-marker-intent
-    (directory find-eslint find-tailwind find-biome)
+    (directory find-eslint find-tailwind find-biome
+               &optional eslint-config-only)
   "Return marker intent found in DIRECTORY.
 
 Only inspect the categories selected by FIND-ESLINT, FIND-TAILWIND, and
-FIND-BIOME.  Use one unsorted, keyword-prefiltered local directory read, retain
-only a bounded number of candidates, and stop as soon as every selected
-category is found.  Remote listings are deliberately skipped because TRAMP
-must fetch the complete directory before applying the regexp; remote manifests
-and executable probes remain available as bounded intent signals."
+FIND-BIOME.  ESLINT-CONFIG-ONLY excludes `.eslintignore', which signals generic
+ESLint use but cannot configure an embedded document parser.  Use one unsorted,
+keyword-prefiltered local directory read, retain only a bounded number of
+candidates, and stop as soon as every selected category is found.  Remote
+listings are deliberately skipped because TRAMP must fetch the complete
+directory before applying the regexp; remote manifests and executable probes
+remain available as bounded intent signals."
   (if (file-remote-p directory)
       (eglotx-presets--intent-create)
     (let ((case-fold-search nil)
@@ -368,7 +420,8 @@ and executable probes remain available as bounded intent signals."
                (eslint-marker
                 (and find-eslint
                      (not eslint)
-                     (eglotx-presets--eslint-marker-p name)))
+                     (eglotx-presets--eslint-marker-p
+                      name eslint-config-only)))
                (tailwind-marker
                 (and find-tailwind
                      (not tailwind)
@@ -386,12 +439,13 @@ and executable probes remain available as bounded intent signals."
        :eslint eslint :tailwind tailwind :biome biome))))
 
 (defun eglotx-presets--project-intent
-    (directories &optional context categories)
+    (directories &optional context categories eslint-config-only)
   "Return requested optional-backend intent for DIRECTORIES.
 
 Use optional discovery CONTEXT.  CATEGORIES is a list containing any of
 `eslint', `tailwind', and `biome'; nil preserves the compatibility behavior of
-checking every category.  Unrequested categories remain nil in the result."
+checking every category.  Unrequested categories remain nil in the result.
+ESLINT-CONFIG-ONLY excludes an ignore file as ESLint intent."
   (let* ((all (null categories))
          (find-eslint (or all (memq 'eslint categories)))
          (find-tailwind (or all (memq 'tailwind categories)))
@@ -435,7 +489,8 @@ checking every category.  Unrequested categories remain nil in the result."
                 directory
                 (and find-eslint (not eslint))
                 (and find-tailwind (not tailwind))
-                (and find-biome (not biome)))))
+                (and find-biome (not biome))
+                eslint-config-only)))
           (setq eslint
                 (or eslint (eglotx-presets--intent-eslint markers))
                 tailwind
@@ -768,27 +823,168 @@ Build metadata is ignored.  A prerelease with the same numeric core remains
             (throw 'found path)))))
     nil))
 
-(defun eglotx-presets--biome-vue-full-support-p (context)
-  "Return non-nil when CONTEXT explicitly enables full Biome Vue support."
+(defun eglotx-presets--biome-embedded-full-support-p (context)
+  "Return non-nil when CONTEXT enables full Biome embedded-language support."
   (when-let* ((path (eglotx-presets--biome-config-path context))
               (config (eglotx-presets--read-jsonc context path))
               (html (gethash "html" config))
               ((hash-table-p html)))
     (eq (gethash "experimentalFullSupportEnabled" html) t)))
 
-(defun eglotx-presets--vue-biome-backend (context executable)
-  "Return a Vue-cohort Biome backend for EXECUTABLE using CONTEXT policy."
+(defun eglotx-presets--embedded-biome-backend
+    (context executable language-id)
+  "Return an embedded LANGUAGE-ID Biome backend for EXECUTABLE in CONTEXT."
   (let ((backend
-         (eglotx-presets--biome-addon-backend executable '("vue"))))
-    (unless (eglotx-presets--biome-vue-full-support-p context)
-      ;; Biome documents Vue support as experimental.  Its partial mode only
-      ;; extracts script blocks, so leave whole-SFC formatting to VLS.
+         (eglotx-presets--biome-addon-backend
+          executable (list language-id))))
+    (unless (eglotx-presets--biome-embedded-full-support-p context)
+      ;; Biome's partial SFC mode extracts only script blocks.  Keep
+      ;; whole-document formatting with the structural language server.
       (setq backend
             (plist-put backend :priority 70)
             backend
             (plist-put backend :only
-                       eglotx-presets--biome-vue-partial-only)))
+                       eglotx-presets--biome-embedded-partial-only)))
     backend))
+
+(defun eglotx-presets--embedded-web-addon-backends
+    (context bin-directories language-id)
+  "Return intent-gated embedded Web add-ons for LANGUAGE-ID in CONTEXT.
+
+Use BIN-DIRECTORIES for project-local Node resolution.  The returned order is
+Biome, ESLint, Tailwind CSS, then GraphQL.  Every backend is restricted to
+LANGUAGE-ID, and Biome is admitted only when its installed version supports
+embedded documents."
+  (let* ((root (eglotx-presets--context-root context))
+         (directories (eglotx-presets--context-directories context))
+         (languages (list language-id))
+         (eslint-resolution
+          (unless (eglotx-presets--backend-disabled-p 'eslint)
+            (eglotx-presets--node-resolution
+             context "vscode-eslint-language-server" bin-directories)))
+         (eslint-executable (cdr eslint-resolution))
+         (tailwind-resolution
+          (unless (eglotx-presets--backend-disabled-p 'tailwindcss)
+            (eglotx-presets--node-resolution
+             context "tailwindcss-language-server" bin-directories)))
+         (tailwind-local (car tailwind-resolution))
+         (tailwind-executable (cdr tailwind-resolution))
+         (biome-resolution
+          (unless (eglotx-presets--backend-disabled-p 'biome)
+            (eglotx-presets--node-resolution context "biome" bin-directories)))
+         (biome-local (car biome-resolution))
+         (biome-executable (cdr biome-resolution))
+         (biome-source-executable
+          (eglotx-presets--node-source-executable
+           context "biome" biome-local biome-executable))
+         (biome-package
+          (and biome-executable
+               (eglotx-presets--node-package-directory
+                context biome-local biome-source-executable
+                "@biomejs/biome" "@biomejs/biome")))
+         (biome-version
+          (and biome-package
+               (eglotx-presets--node-package-version context biome-package)))
+         (graphql-resolution
+          (unless (eglotx-presets--backend-disabled-p 'graphql)
+            (eglotx-presets--node-resolution
+             context "graphql-lsp" bin-directories)))
+         (graphql-executable (cdr graphql-resolution))
+         (intent-categories
+          (delq nil
+                (list (and eslint-executable 'eslint)
+                      (and tailwind-executable (not tailwind-local) 'tailwind)
+                      (and biome-executable (not biome-local) 'biome))))
+         (intent
+          (if intent-categories
+              (eglotx-presets--project-intent
+               directories context intent-categories t)
+            (eglotx-presets--intent-create)))
+         (eslint
+          (and eslint-executable
+               (eglotx-presets--intent-eslint intent)
+               eslint-executable))
+         (tailwind
+          (and tailwind-executable
+               (or tailwind-local (eglotx-presets--intent-tailwind intent))
+               tailwind-executable))
+         (biome
+          (and biome-executable
+               (eglotx-presets--version-at-least-p biome-version "2.3.0")
+               (or biome-local (eglotx-presets--intent-biome intent))
+               biome-executable))
+         (graphql-config
+          (and graphql-executable
+               (eglotx-presets--graphql-config-directory context)))
+         backends)
+    (when biome
+      (push (eglotx-presets--embedded-biome-backend
+             context biome language-id)
+            backends))
+    (when eslint
+      (push (list :name "eslint"
+                  :command (list eslint "--stdio")
+                  :priority 80
+                  :required nil
+                  :languages languages
+                  :settings (eglotx-presets--eslint-settings root)
+                  :only eglotx-presets--eslint-addon-only)
+            backends))
+    (when tailwind
+      (let ((backend (eglotx-presets--tailwind-backend tailwind)))
+        (setq backend
+              (plist-put backend :languages languages)
+              backend
+              (plist-put backend :only
+                         eglotx-presets--tailwind-embedded-only))
+        (push backend backends)))
+    (when graphql-config
+      (push (list :name "graphql"
+                  :command
+                  (list graphql-executable "server" "-m" "stream"
+                        "--configDir"
+                        (eglotx-presets--process-path graphql-config))
+                  :priority 50
+                  :required nil
+                  :languages languages
+                  :only eglotx-presets--graphql-only)
+            backends))
+    (nreverse backends)))
+
+;;;###autoload
+(defun eglotx-presets-svelte-contact (&optional interactive project)
+  "Return Svelte Language Server plus detected complementary backends.
+
+Svelte Language Server is the required structural server and already owns the
+Svelte, TypeScript/JavaScript, HTML, and CSS regions of a Svelte document.
+ESLint, Tailwind CSS, GraphQL, and Biome 2.3 or newer join only when their
+existing project-intent policy applies.  Biome may format the whole document
+only when its experimental full HTML support is explicitly enabled.
+
+Project-local executables take precedence over PATH.  With only
+`svelteserver', return an ordinary argv instead of starting the multiplexer.
+INTERACTIVE and PROJECT have the common preset-contact semantics documented by
+`eglotx-presets-mode'."
+  (let* ((context (eglotx-presets--make-context project))
+         (bin-directories (eglotx-presets--node-bin-directories context))
+         (resolution
+          (eglotx-presets--node-resolution
+           context "svelteserver" bin-directories))
+         (executable (cdr resolution))
+         backends)
+    (when executable
+      (setq backends
+            (cons
+             (list :name "svelte"
+                   :command (list executable "--stdio")
+                   :priority 100
+                   :required t
+                   :languages '("svelte"))
+             (eglotx-presets--embedded-web-addon-backends
+              context bin-directories "svelte"))))
+    (eglotx-presets--materialize-contact
+     backends interactive "svelteserver is not executable"
+     (eglotx-presets--context-project context))))
 
 ;;;###autoload
 (defun eglotx-presets-vue-contact (&optional interactive project)
@@ -805,8 +1001,6 @@ When any required component is unavailable, preserve the Eglot contact that
 preceded `eglotx-presets-mode'.  INTERACTIVE and PROJECT follow the other
 bundled contact functions."
   (let* ((context (eglotx-presets--make-context project))
-         (root (eglotx-presets--context-root context))
-         (directories (eglotx-presets--context-directories context))
          (bin-directories (eglotx-presets--node-bin-directories context))
          (vue-resolution
           (eglotx-presets--node-resolution
@@ -834,69 +1028,6 @@ bundled contact functions."
                 "@vue/typescript-plugin" "@vue/typescript-plugin")))
          (tsdk (and vue-package
                     (eglotx-presets--vue-tsdk-directory context)))
-         (eslint-resolution
-          (unless (eglotx-presets--backend-disabled-p 'eslint)
-            (eglotx-presets--node-resolution
-             context "vscode-eslint-language-server" bin-directories)))
-         (eslint-local (car eslint-resolution))
-         (eslint-executable (cdr eslint-resolution))
-         (tailwind-resolution
-          (unless (eglotx-presets--backend-disabled-p 'tailwindcss)
-            (eglotx-presets--node-resolution
-             context "tailwindcss-language-server" bin-directories)))
-         (tailwind-local (car tailwind-resolution))
-         (tailwind-executable (cdr tailwind-resolution))
-         (biome-resolution
-          (unless (eglotx-presets--backend-disabled-p 'biome)
-            (eglotx-presets--node-resolution context "biome" bin-directories)))
-         (biome-local (car biome-resolution))
-         (biome-executable (cdr biome-resolution))
-         (biome-source-executable
-          (eglotx-presets--node-source-executable
-           context "biome" biome-local biome-executable))
-         (biome-package
-          (and biome-executable
-               (eglotx-presets--node-package-directory
-                context biome-local biome-source-executable
-                "@biomejs/biome" "@biomejs/biome")))
-         (biome-version
-          (and biome-package
-               (eglotx-presets--node-package-version
-                context biome-package)))
-         (graphql-resolution
-          (unless (eglotx-presets--backend-disabled-p 'graphql)
-            (eglotx-presets--node-resolution
-             context "graphql-lsp" bin-directories)))
-         (graphql-executable (cdr graphql-resolution))
-         (intent-categories
-          (and vue-executable typescript-executable vue-package
-               vue-typescript-plugin
-               (delq nil
-                     (list (and eslint-executable (not eslint-local) 'eslint)
-                           (and tailwind-executable (not tailwind-local)
-                                'tailwind)
-                           (and biome-executable (not biome-local) 'biome)))))
-         (intent
-          (if intent-categories
-              (eglotx-presets--project-intent
-               directories context intent-categories)
-            (eglotx-presets--intent-create)))
-         (eslint
-          (and eslint-executable
-               (or eslint-local (eglotx-presets--intent-eslint intent))
-               eslint-executable))
-         (tailwind
-          (and tailwind-executable
-               (or tailwind-local (eglotx-presets--intent-tailwind intent))
-               tailwind-executable))
-         (biome
-          (and biome-executable
-               (eglotx-presets--version-at-least-p biome-version "2.3.0")
-               (or biome-local (eglotx-presets--intent-biome intent))
-               biome-executable))
-         (graphql-config
-          (and graphql-executable
-               (eglotx-presets--graphql-config-directory context)))
          backends)
     (if (not (and vue-executable typescript-executable vue-package
                   vue-typescript-plugin))
@@ -936,41 +1067,11 @@ bundled contact functions."
                    :languages '("vue")
                    :initialization-options
                    (eglotx-presets--vue-typescript-options vue-package tsdk))))
-      (when biome
-        (setq backends
-              (append backends
-                      (list (eglotx-presets--vue-biome-backend
-                             context biome)))))
-      (when eslint
-        (setq backends
-              (append
-               backends
-               (list (list :name "eslint"
-                           :command (list eslint "--stdio")
-                           :priority 80
-                           :required nil
-                           :languages '("vue")
-                           :settings
-                           (eglotx-presets--eslint-settings root))))))
-      (when tailwind
-        (let ((backend (eglotx-presets--tailwind-backend tailwind)))
-          (setq backends
-                (append backends
-                        (list (plist-put backend :languages '("vue")))))))
-      (when graphql-config
-        (setq backends
-              (append
-               backends
-               (list
-                (list :name "graphql"
-                      :command
-                      (list graphql-executable "server" "-m" "stream"
-                            "--configDir"
-                            (eglotx-presets--process-path graphql-config))
-                      :priority 50
-                      :required nil
-                      :languages '("vue")
-                      :only eglotx-presets--graphql-only)))))
+      (setq backends
+            (append
+             backends
+             (eglotx-presets--embedded-web-addon-backends
+              context bin-directories "vue")))
       (apply #'eglotx-contact backends))))
 
 (defun eglotx-presets--eslint-settings (root)
@@ -1471,7 +1572,7 @@ INTERACTIVE and PROJECT have the common preset-contact semantics documented by
 (define-minor-mode eglotx-presets-mode
   "Globally install the bundled project-aware Eglot contact catalog.
 
-Enabling prepends nine owned entries to `eglot-server-programs' and snapshots
+Enabling prepends ten owned entries to `eglot-server-programs' and snapshots
 the contacts they shadow.  Each contact discovers servers only when Eglot
 starts a project session, delegates a missing required toolchain to the
 matching snapshot contact, returns an ordinary argv for one resolved backend,

@@ -65,16 +65,34 @@ live in [`architecture.md`](architecture.md); dated research is non-normative.
 
 - Requiring the core does not inspect projects or mutate
   `eglot-server-programs`.
-- `eglotx-presets-mode` reversibly prepends nine bundled contacts; disabling
+- `eglotx-presets-mode` reversibly prepends ten bundled contacts; disabling
   it removes only the exact entries that it installed.
 - Enabling the mode snapshots preceding Eglot contacts. If a bundled recipe
   cannot resolve its supported required primary or required configuration, it
   returns the matching saved static contact or calls the saved functional
   contact with its supported arity. Disabling clears the fallback state.
-- The contacts cover Vue SFCs, one Angular-aware JavaScript/TypeScript cohort,
-  HTML, CSS/SCSS/Less, JSON/JSONC, GraphQL, Python, the complete Go
+- The contacts cover Svelte and Vue SFCs, one Angular-aware
+  JavaScript/TypeScript cohort, HTML, CSS/SCSS/Less, JSON/JSONC, GraphQL,
+  Python, the complete Go
   source/module/workspace cohort, and Ruby. JSONC is ordered before its JSON
   parent modes so Eglot retains the exact language ID.
+- The Svelte entry assigns language ID `svelte` to `svelte-ts-mode` and
+  `svelte-mode`. `svelteserver --stdio` is its sole required structural primary
+  because that process embeds Svelte, HTML, CSS, and JS/TS plugins.  The contact
+  must not start TypeScript, HTML, or CSS Language Server for a `.svelte` URI.
+  SvelteKit adds no separate server; `.svelte.ts` and `.svelte.js` remain in the
+  ordinary JS/TS cohort.
+- Svelte may add intent-gated ESLint, Tailwind CSS, GraphQL, and Biome >= 2.3,
+  each restricted to language ID `svelte` and its complementary method role.
+  Embedded ESLint requires a structural config or manifest dependency; a local
+  `vscode-eslint-language-server` executable alone is not intent because it can
+  be incidental to a shared extracted-language-server package.
+  GraphQL still requires structural GraphQL Config.  ESLint and Tailwind do not
+  own formatting.  Biome without an explicit project
+  `html.experimentalFullSupportEnabled: true` flag omits formatting and runs
+  below Svelte priority; with the flag it is the single higher-priority
+  formatter.  Completion/code-action resolve and diagnostics retain their
+  producing backend through the generic core ownership model.
 - The TypeScript contact prefers the nearest executable under an ancestor
   `node_modules/.bin`, bounded by the project root, before the correct local or
   remote PATH.
@@ -415,3 +433,9 @@ live in [`architecture.md`](architecture.md); dated research is non-normative.
     resolvable after newer CAPF batches evict its fallback entry, after GC, and
     after `didChange`; close/reopen and backend retirement reject the stale
     candidate, while in-flight mutation returns `ContentModified`.
+15. The Svelte ESLint and Biome fixtures each start exactly one Svelte
+    structural primary plus the intended add-ons; both deliver independent
+    type/lint diagnostics, reject stale Svelte 5 rune diagnostics, and preserve
+    both Svelte and Tailwind completion/resolve ownership, while formatter
+    ownership changes from Svelte to Biome only under the explicit full-support
+    project flag.

@@ -1,0 +1,15 @@
+{
+  "name": "eglotx-svelte-ts-tailwind-biome-fixture",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "svelte": "^5.56.0",
+    "tailwindcss": "^4.3.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.0",
+    "@tailwindcss/language-server": "^0.16.0",
+    "svelte-language-server": "^0.18.0",
+    "typescript": "^6.0.0"
+  }
+}

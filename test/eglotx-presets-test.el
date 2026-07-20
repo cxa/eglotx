@@ -328,7 +328,14 @@ Return a cons of its executable and package directory."
                   (nth 2 case))))))))
 
 (ert-deftest eglotx-presets-vue-entry-is-specific-and-precedes-web-entries ()
-  (should (eq (car eglotx-presets--entries) eglotx-presets--vue-entry))
+  (should
+   (< (cl-position eglotx-presets--vue-entry eglotx-presets--entries :test #'eq)
+      (cl-position eglotx-presets--typescript-entry
+                   eglotx-presets--entries :test #'eq)))
+  (should
+   (< (cl-position eglotx-presets--vue-entry eglotx-presets--entries :test #'eq)
+      (cl-position eglotx-presets--html-entry
+                   eglotx-presets--entries :test #'eq)))
   (should (eq (cdr eglotx-presets--vue-entry)
               'eglotx-presets-vue-contact))
   (let ((modes (car eglotx-presets--vue-entry)))
@@ -443,6 +450,234 @@ Return a cons of its executable and package directory."
         (should (memq :textDocument/completion (plist-get backend :only)))
         (should-not
          (memq :textDocument/formatting (plist-get backend :only)))))))
+
+(ert-deftest eglotx-presets-svelte-builds-local-complementary-stack ()
+  (eglotx-presets-test--with-directory (root)
+    (eglotx-presets-test--with-directory (global-bin)
+      (let* ((package (expand-file-name "packages/app/" root))
+             (source (expand-file-name "src/" package))
+             (svelte
+              (eglotx-presets-test--local-server package "svelteserver"))
+             (eslint
+              (eglotx-presets-test--local-server
+               package "vscode-eslint-language-server"))
+             (tailwind
+              (eglotx-presets-test--local-server
+               package "tailwindcss-language-server"))
+             (graphql
+              (eglotx-presets-test--local-server package "graphql-lsp")))
+        (make-directory source t)
+        (eglotx-presets-test--write-file
+         package "package.json"
+         (concat "{\"dependencies\":{\"svelte\":\"5\","
+                 "\"tailwindcss\":\"4\"},"
+                 "\"devDependencies\":{\"eslint\":\"10\"}}"))
+        (eglotx-presets-test--write-file
+         package "my-graphql.config.preview.mjs" "export default {};\n")
+        ;; These structural servers must not join a Svelte document: the
+        ;; official Svelte server already embeds TypeScript, HTML, and CSS.
+        (dolist (name '("svelteserver"
+                        "vscode-eslint-language-server"
+                        "tailwindcss-language-server"
+                        "graphql-lsp"
+                        "typescript-language-server"
+                        "vscode-html-language-server"
+                        "vscode-css-language-server"))
+          (eglotx-presets-test--global-server global-bin name))
+        (let* ((default-directory source)
+               (exec-path (list global-bin))
+               (contact
+                (eglotx-presets-svelte-contact
+                 nil (eglotx-presets-test--project root)))
+               (backends (eglotx-presets-test--backend-specs contact)))
+          (should (eq (car contact) 'eglotx-server))
+          (should
+           (equal (mapcar (lambda (backend) (plist-get backend :name))
+                          backends)
+                  '("svelte" "eslint" "tailwindcss" "graphql")))
+          (dolist (backend backends)
+            (should (equal (plist-get backend :languages) '("svelte"))))
+          (should
+           (equal (plist-get
+                   (eglotx-presets-test--backend contact "svelte") :command)
+                  (list svelte "--stdio")))
+          (should
+           (equal (plist-get
+                   (eglotx-presets-test--backend contact "eslint") :command)
+                  (list eslint "--stdio")))
+          (should
+           (equal (plist-get
+                   (eglotx-presets-test--backend contact "tailwindcss")
+                   :command)
+                  (list tailwind "--stdio")))
+          (should
+           (equal (plist-get
+                   (eglotx-presets-test--backend contact "graphql") :command)
+                  (list graphql "server" "-m" "stream" "--configDir"
+                        package)))
+          (should
+           (equal (plist-get
+                   (plist-get
+                    (eglotx-presets-test--backend contact "eslint")
+                    :settings)
+                   :validate)
+                  "on"))
+          (let ((eslint-only
+                 (plist-get
+                  (eglotx-presets-test--backend contact "eslint") :only))
+                (tailwind-only
+                 (plist-get
+                  (eglotx-presets-test--backend contact "tailwindcss")
+                  :only)))
+            (should (memq :textDocument/diagnostic eslint-only))
+            (should (memq :textDocument/codeAction eslint-only))
+            (should-not (memq :textDocument/completion eslint-only))
+            (should-not (memq :textDocument/formatting eslint-only))
+            (should (memq :textDocument/completion tailwind-only))
+            (should (memq :completionItem/resolve tailwind-only))
+            (should (memq :codeAction/resolve tailwind-only))
+            (should (memq :workspace/didChangeWorkspaceFolders tailwind-only))
+            (should-not (memq :textDocument/formatting tailwind-only))
+            (should-not (memq :textDocument/rename tailwind-only))))))))
+
+(ert-deftest eglotx-presets-svelte-single-server-keeps-eglot-fast-path ()
+  (eglotx-presets-test--with-directory (root)
+    (let ((svelte (eglotx-presets-test--local-server root "svelteserver"))
+          (default-directory root)
+          (exec-path nil))
+      (should
+       (equal (eglotx-presets-svelte-contact
+               nil (eglotx-presets-test--project root))
+              (list svelte "--stdio"))))))
+
+(ert-deftest eglotx-presets-svelte-gates-biome-embedded-language-support ()
+  (eglotx-presets-test--with-directory (root)
+    (eglotx-presets-test--local-server root "svelteserver")
+    (eglotx-presets-test--biome-server root "2.2.4")
+    (eglotx-presets-test--write-file
+     root "package.json"
+     "{\"dependencies\":{\"svelte\":\"5\"},\"devDependencies\":{\"@biomejs/biome\":\"2\"}}")
+    (let ((default-directory root)
+          (exec-path nil))
+      (let ((contact
+             (eglotx-presets-svelte-contact
+              nil (eglotx-presets-test--project root))))
+        (should-not (eglotx-presets-test--backend contact "biome")))
+      (eglotx-presets-test--write-file
+       root "node_modules/@biomejs/biome/package.json"
+       "{\"name\":\"@biomejs/biome\",\"version\":\"2.3.0\"}")
+      (let* ((contact
+              (eglotx-presets-svelte-contact
+               nil (eglotx-presets-test--project root)))
+             (backend (eglotx-presets-test--backend contact "biome")))
+        (should (equal (plist-get backend :languages) '("svelte")))
+        (should (= (plist-get backend :priority) 70))
+        (should-not
+         (memq :textDocument/formatting (plist-get backend :only))))
+      (eglotx-presets-test--write-file
+       root "biome.jsonc"
+       (concat "{\n  // Opt in to Biome's whole-document Svelte support.\n"
+               "  \"html\": {\n"
+               "    \"experimentalFullSupportEnabled\": true,\n"
+               "  },\n}\n"))
+      (let* ((contact
+              (eglotx-presets-svelte-contact
+               nil (eglotx-presets-test--project root)))
+             (backend (eglotx-presets-test--backend contact "biome")))
+        (should (= (plist-get backend :priority) 120))
+        (should
+         (memq :textDocument/formatting (plist-get backend :only)))))))
+
+(ert-deftest eglotx-presets-svelte-fixtures-isolate-optional-backends ()
+  (eglotx-presets-test--with-directory (tools)
+    (dolist (name '("svelteserver"
+                    "vscode-eslint-language-server"
+                    "tailwindcss-language-server"))
+      (eglotx-presets-test--local-server tools name))
+    (eglotx-presets-test--biome-server tools "2.5.4")
+    (let ((exec-path (list (expand-file-name "node_modules/.bin" tools))))
+      (dolist (case '(("svelte_ts_tailwind_eslint"
+                       ("svelte" "eslint" "tailwindcss"))
+                      ("svelte_ts_tailwind_biome"
+                       ("svelte" "biome" "tailwindcss"))))
+        (let* ((root (eglotx-presets-test--project-fixture (car case)))
+               (default-directory (expand-file-name "src/" root))
+               (contact
+                (eglotx-presets-svelte-contact
+                 nil (eglotx-presets-test--project root))))
+          (should
+           (equal (mapcar (lambda (backend) (plist-get backend :name))
+                          (eglotx-presets-test--backend-specs contact))
+                  (cadr case))))))))
+
+(ert-deftest eglotx-presets-svelte-global-addons-require-project-intent ()
+  (eglotx-presets-test--with-directory (root)
+    (eglotx-presets-test--with-directory (global-bin)
+      (let ((svelte (eglotx-presets-test--local-server root "svelteserver")))
+        (dolist (name '("vscode-eslint-language-server"
+                        "tailwindcss-language-server"))
+          (eglotx-presets-test--global-server global-bin name))
+        (let ((default-directory root)
+              (exec-path (list global-bin)))
+          (should
+           (equal (eglotx-presets-svelte-contact
+                   nil (eglotx-presets-test--project root))
+                  (list svelte "--stdio")))
+          ;; vscode-langservers-extracted exposes an ESLint binary alongside
+          ;; unrelated HTML/CSS tools.  Local availability is not ESLint
+          ;; intent for an embedded document.
+          (eglotx-presets-test--local-server
+           root "vscode-eslint-language-server")
+          (eglotx-presets-test--local-server
+           root "tailwindcss-language-server")
+          (let ((contact
+                 (eglotx-presets-svelte-contact
+                  nil (eglotx-presets-test--project root))))
+            (should
+             (equal (mapcar
+                     (lambda (backend) (plist-get backend :name))
+                     (eglotx-presets-test--backend-specs contact))
+                    '("svelte" "tailwindcss"))))
+          (eglotx-presets-test--write-file root ".eslintignore" "dist\n")
+          (let ((contact
+                 (eglotx-presets-svelte-contact
+                  nil (eglotx-presets-test--project root))))
+            (should
+             (equal (mapcar
+                     (lambda (backend) (plist-get backend :name))
+                     (eglotx-presets-test--backend-specs contact))
+                    '("svelte" "tailwindcss"))))
+          (eglotx-presets-test--write-file root "eslint.config.js" "")
+          (let ((contact
+                 (eglotx-presets-svelte-contact
+                  nil (eglotx-presets-test--project root))))
+            (should
+             (equal (mapcar
+                     (lambda (backend) (plist-get backend :name))
+                     (eglotx-presets-test--backend-specs contact))
+                    '("svelte" "eslint" "tailwindcss")))))))))
+
+(ert-deftest eglotx-presets-svelte-entry-is-specific-and-first ()
+  (should (eq (car eglotx-presets--entries) eglotx-presets--svelte-entry))
+  (should (eq (cdr eglotx-presets--svelte-entry)
+              'eglotx-presets-svelte-contact))
+  (let ((modes (car eglotx-presets--svelte-entry)))
+    (dolist (mode '(svelte-ts-mode svelte-mode))
+      (should
+       (equal (assq mode modes) (list mode :language-id "svelte"))))
+    (should-not (assq 'web-mode modes))))
+
+(ert-deftest eglotx-presets-svelte-preserves-fallback-when-primary-is-missing ()
+  (eglotx-presets-test--with-directory (root)
+    (let* ((fallback '("user-svelte-language-server" "--stdio"))
+           (eglotx-presets--fallback-resolver
+            (lambda (_interactive _project) fallback))
+           (default-directory root)
+           (exec-path nil))
+      (should
+       (equal (eglotx-presets-svelte-contact
+               nil (eglotx-presets-test--project root))
+              fallback)))))
 
 (ert-deftest eglotx-presets-community-fixtures-select-safe-cohorts ()
   (eglotx-presets-test--with-directory (global-bin)
@@ -920,7 +1155,7 @@ Return a cons of its executable and package directory."
                            1)))
               (should
                (eq (cdr (car eglot-server-programs))
-                   'eglotx-presets-vue-contact)))
+                   'eglotx-presets-svelte-contact)))
           (eglotx-presets-mode -1))
         (should (equal eglot-server-programs original))))))
 
