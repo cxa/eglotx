@@ -34,16 +34,17 @@ catalog:
        :rev :last-release)
   :demand t
   :config
-  (require 'eglotx-presets)
   (eglotx-presets-mode 1))
 ```
 
 The declaration uses `eglotx`, whose main file carries the package metadata;
-`eglotx-presets` is a secondary feature in the same checkout.  `:last-release`
-selects the latest revision that changed the main file's `Version:` header.
-Use `:newest` to follow the development branch, or an explicit tag string to
-pin one immutable release.  This README describes `main`; features listed under
-[Unreleased](CHANGELOG.md) require `:newest` until the next release.
+`eglotx-presets` is a secondary feature in the same checkout, and its generated
+autoload exposes `eglotx-presets-mode` without an explicit `require`.
+`:last-release` selects the latest revision that changed the main file's
+`Version:` header.  Use `:newest` to follow the development branch, or an
+explicit tag string to pin one immutable release.  This README describes
+`main`; features listed under [Unreleased](CHANGELOG.md) require `:newest`
+until the next release.
 
 The built-in `use-package` supports `:vc` on Emacs 30.1 and newer.  Emacs 29's
 built-in version does not; either update `use-package` from GNU ELPA or install
@@ -71,11 +72,11 @@ versions are older than the declared minimums.  Then put the checkout on
 
 ## Preset behavior
 
-The global mode covers Svelte, Astro, Vue, JavaScript/TypeScript (including
-React JSX and TSX), HTML, CSS/SCSS/Less, JSON/JSONC, GraphQL, Python, Go
-source/module/workspace files, and Ruby.  A recipe normally selects one
-structural primary and adds only intent-backed complementary servers such as
-Ruff, GolangCI, Sorbet, ESLint, Tailwind CSS, Biome, GraphQL, or Angular.
+The global mode covers Svelte, Astro, Vue, JavaScript/JSX,
+TypeScript/TSX (including React), HTML, CSS/SCSS/Less, JSON/JSONC, GraphQL,
+Python, Go source/module/workspace files, and Ruby.  A recipe normally selects
+one structural primary and adds only intent-backed complementary servers such
+as Ruff, GolangCI, Sorbet, ESLint, Tailwind CSS, Biome, GraphQL, or Angular.
 Embedded component recipes avoid duplicating services already supplied by
 their framework server; Vue keeps its required VLS/TLS/plugin stack because
 that is an upstream protocol requirement.

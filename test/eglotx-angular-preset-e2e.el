@@ -55,7 +55,7 @@
   (add-to-list
    'eglot-server-programs
    '(((eglotx-angular-preset-e2e-mode :language-id "typescript"))
-     . eglotx-presets-javascript-typescript-react-contact))
+     . eglotx-presets-javascript-typescript-contact))
   (unwind-protect
       (progn
         (setq buffer (find-file-noselect source))

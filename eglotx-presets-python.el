@@ -337,14 +337,15 @@ INTERACTIVE and PROJECT have the common preset-contact semantics documented by
           (eglotx-presets-python--bin-directories context))
          (primary
           (eglotx-presets-python--select-primary context bin-directories))
+         (ruff-enabled
+          (and primary
+               (not (eglotx-presets--add-on-disabled-p 'ruff))))
          (ruff-local
-          (when (and primary
-                     (not (eglotx-presets--backend-disabled-p 'ruff)))
+          (when ruff-enabled
             (eglotx-presets--context-local-executable
              context "ruff" bin-directories)))
          (ruff
-          (and primary
-               (not (eglotx-presets--backend-disabled-p 'ruff))
+          (and ruff-enabled
                (or ruff-local
                    (eglotx-presets-python--ruff-intent-p context))
                (eglotx-presets--context-resolve-executable

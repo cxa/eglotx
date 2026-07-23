@@ -125,7 +125,7 @@ INTERACTIVE and PROJECT have the common preset-contact semantics documented by
            context bin-directories))
          (srb-resolution
           (and (eq (plist-get primary :id) 'ruby-lsp)
-               (not (eglotx-presets--backend-disabled-p 'sorbet))
+               (not (eglotx-presets--add-on-disabled-p 'sorbet))
                (eglotx-presets-ruby--sorbet-intent-p context)
                (eglotx-presets-ruby--resolve
                 context "srb" bin-directories)))

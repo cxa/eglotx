@@ -167,7 +167,7 @@
     :workspace/diagnostic)
   "Methods owned by Tailwind beside an embedded-language primary.")
 
-(defconst eglotx-presets--javascript-typescript-react-entry
+(defconst eglotx-presets--javascript-typescript-entry
   '(((js-jsx-mode :language-id "javascriptreact")
      (rjsx-mode :language-id "javascriptreact")
      (js2-jsx-mode :language-id "javascriptreact")
@@ -182,8 +182,8 @@
      (jtsx-typescript-mode :language-id "typescript")
      (typescript-mode :language-id "typescript")
      (typescript-ts-mode :language-id "typescript"))
-    . eglotx-presets-javascript-typescript-react-contact)
-  "Entry installed for one JavaScript/TypeScript/React project cohort.")
+    . eglotx-presets-javascript-typescript-contact)
+  "Entry installed for the JavaScript and TypeScript document cohort.")
 
 (defconst eglotx-presets--svelte-entry
   '(((svelte-ts-mode :language-id "svelte")
@@ -235,7 +235,7 @@
   (list eglotx-presets--svelte-entry
         eglotx-presets--astro-entry
         eglotx-presets--vue-entry
-        eglotx-presets--javascript-typescript-react-entry
+        eglotx-presets--javascript-typescript-entry
         eglotx-presets--html-entry
         eglotx-presets--css-entry
         eglotx-presets--json-entry
@@ -254,19 +254,8 @@
 (defvar eglotx-presets--resolving-fallback nil
   "Non-nil while resolving a contact preserved by the presets mode.")
 
-(defconst eglotx-presets--contact-functions
-  '(eglotx-presets-svelte-contact
-    eglotx-presets-astro-contact
-    eglotx-presets-vue-contact
-    eglotx-presets-javascript-typescript-react-contact
-    eglotx-presets-typescript-contact
-    eglotx-presets-html-contact
-    eglotx-presets-css-contact
-    eglotx-presets-json-contact
-    eglotx-presets-graphql-contact
-    eglotx-presets-python-contact
-    eglotx-presets-go-contact
-    eglotx-presets-ruby-contact)
+(defconst eglotx-presets--owned-contact-functions
+  (mapcar #'cdr eglotx-presets--entries)
   "Contact functions owned by the bundled presets.")
 
 (cl-defstruct (eglotx-presets--intent
@@ -378,10 +367,6 @@ When CONFIG-ONLY is non-nil, exclude the legacy ignore-only signal."
                      (eglotx-presets--regular-file-p context path))
             (throw 'intent directory)))))
     nil))
-
-(defun eglotx-presets--graphql-intent-p (context)
-  "Return non-nil when CONTEXT has structural GraphQL configuration."
-  (and (eglotx-presets--graphql-config-directory context) t))
 
 (defun eglotx-presets--angular-intent-p (context)
   "Return non-nil when CONTEXT structurally identifies an Angular project."
@@ -526,10 +511,8 @@ ESLINT-CONFIG-ONLY excludes an ignore file as ESLint intent."
 (defun eglotx-presets--node-resolution
     (context program bin-directories)
   "Return PROGRAM's local and effective paths for CONTEXT."
-  (let ((local
-         (and eglotx-presets-prefer-project-local-servers
-              (eglotx-presets--context-local-executable
-               context program bin-directories))))
+  (let ((local (eglotx-presets--context-local-executable
+                context program bin-directories)))
     (cons local
           (eglotx-presets--context-resolve-executable
            context program local))))
@@ -577,16 +560,6 @@ break local ties deterministically."
                          (copy-sequence (cddr candidate)))
           :priority priority
           :required t)))
-
-(defun eglotx-presets--contact-backends (contact name priority)
-  "Return backend specs represented by CONTACT.
-
-NAME and PRIORITY describe CONTACT when it is an ordinary argv fast path."
-  (if (eq (car-safe contact) 'eglotx-server)
-      (copy-tree (plist-get (cdr contact) :backend-specs))
-    (and contact
-         (list (list :name name :command (copy-sequence contact)
-                     :priority priority :required t)))))
 
 (defun eglotx-presets--biome-addon-backend (path &optional languages)
   "Return a restricted optional Biome backend using PATH.
@@ -877,18 +850,18 @@ embedded documents."
          (directories (eglotx-presets--context-directories context))
          (languages (list language-id))
          (eslint-resolution
-          (unless (eglotx-presets--backend-disabled-p 'eslint)
+          (unless (eglotx-presets--add-on-disabled-p 'eslint)
             (eglotx-presets--node-resolution
              context "vscode-eslint-language-server" bin-directories)))
          (eslint-executable (cdr eslint-resolution))
          (tailwind-resolution
-          (unless (eglotx-presets--backend-disabled-p 'tailwindcss)
+          (unless (eglotx-presets--add-on-disabled-p 'tailwindcss)
             (eglotx-presets--node-resolution
              context "tailwindcss-language-server" bin-directories)))
          (tailwind-local (car tailwind-resolution))
          (tailwind-executable (cdr tailwind-resolution))
          (biome-resolution
-          (unless (eglotx-presets--backend-disabled-p 'biome)
+          (unless (eglotx-presets--add-on-disabled-p 'biome)
             (eglotx-presets--node-resolution context "biome" bin-directories)))
          (biome-local (car biome-resolution))
          (biome-executable (cdr biome-resolution))
@@ -904,7 +877,7 @@ embedded documents."
           (and biome-package
                (eglotx-presets--node-package-version context biome-package)))
          (graphql-resolution
-          (unless (eglotx-presets--backend-disabled-p 'graphql)
+          (unless (eglotx-presets--add-on-disabled-p 'graphql)
             (eglotx-presets--node-resolution
              context "graphql-lsp" bin-directories)))
          (graphql-executable (cdr graphql-resolution))
@@ -1089,51 +1062,48 @@ bundled contact functions."
                 "@vue/typescript-plugin" "@vue/typescript-plugin")))
          (tsdk (and vue-package
                     (eglotx-presets--typescript-sdk-directory context)))
-         backends)
-    (if (not (and vue-executable typescript-executable vue-package
-                  vue-typescript-plugin))
-        (eglotx-presets--missing-contact
-         interactive
-         (cond ((not vue-executable)
-                "vue-language-server is not executable")
-               ((not typescript-executable)
-                "typescript-language-server is not executable")
-               ((not vue-package)
-                "@vue/language-server package directory is unavailable")
-               (t
-                (concat
-                 "@vue/typescript-plugin is not resolvable from the "
-                 "selected Vue server")))
-         (eglotx-presets--context-project context))
-      (setq backends
-            (list
-             (list :name "vue"
-                   :command
-                   (append
-                    (list vue-executable "--stdio")
-                    (when (and tsdk
-                               (eglotx-presets--vue-vls-accepts-tsdk-p
-                                vue-version))
-                      (list (concat "--tsdk=" tsdk))))
-                   :priority 110
-                   :required t
-                   :languages '("vue")
-                   :notification-handlers
-                   '(("tsserver/request"
-                      . eglotx-presets-vue--tsserver-request)))
-             (list :name "typescript"
-                   :command (list typescript-executable "--stdio")
-                   :priority 100
-                   :required t
-                   :languages '("vue")
-                   :initialization-options
-                   (eglotx-presets--vue-typescript-options vue-package tsdk))))
-      (setq backends
+         (missing-message
+          (cond ((not vue-executable)
+                 "vue-language-server is not executable")
+                ((not typescript-executable)
+                 "typescript-language-server is not executable")
+                ((not vue-package)
+                 "@vue/language-server package directory is unavailable")
+                ((not vue-typescript-plugin)
+                 (concat
+                  "@vue/typescript-plugin is not resolvable from the "
+                  "selected Vue server"))))
+         (backends
+          (unless missing-message
             (append
-             backends
+             (list
+              (list :name "vue"
+                    :command
+                    (append
+                     (list vue-executable "--stdio")
+                     (when (and tsdk
+                                (eglotx-presets--vue-vls-accepts-tsdk-p
+                                 vue-version))
+                       (list (concat "--tsdk=" tsdk))))
+                    :priority 110
+                    :required t
+                    :languages '("vue")
+                    :notification-handlers
+                    '(("tsserver/request"
+                       . eglotx-presets-vue--tsserver-request)))
+              (list :name "typescript"
+                    :command (list typescript-executable "--stdio")
+                    :priority 100
+                    :required t
+                    :languages '("vue")
+                    :initialization-options
+                    (eglotx-presets--vue-typescript-options
+                     vue-package tsdk)))
              (eglotx-presets--embedded-web-addon-backends
-              context bin-directories "vue")))
-      (apply #'eglotx-contact backends))))
+              context bin-directories "vue")))))
+    (eglotx-presets--materialize-contact
+     backends interactive missing-message
+     (eglotx-presets--context-project context))))
 
 (defun eglotx-presets--eslint-settings (root)
   "Return vscode-eslint workspace settings for ROOT."
@@ -1174,62 +1144,54 @@ bundled contact functions."
   "Return Biome's default workspace settings object."
   (make-hash-table :test #'equal))
 
-(defun eglotx-presets--typescript-contact-for-context
-    (context interactive &optional suppress-fallback)
-  "Resolve the TypeScript contact in discovery CONTEXT.
+(defun eglotx-presets--angular-probe-directory (ngserver-local context)
+  "Return a Node resolution base for NGSERVER-LOCAL and CONTEXT."
+  (eglotx-presets--process-path
+   (if ngserver-local
+       (file-name-directory
+        (directory-file-name (file-name-directory ngserver-local)))
+     (eglotx-presets--context-root context))))
 
-INTERACTIVE has the same meaning as in `eglotx-presets-typescript-contact'.
-When SUPPRESS-FALLBACK is non-nil, return nil if the primary is unavailable so
-an outer framework recipe can decide whether to preserve an earlier contact."
+(defun eglotx-presets--javascript-typescript-backends (context)
+  "Return resolved JavaScript and TypeScript backend specs for CONTEXT."
   (let* ((root (eglotx-presets--context-root context))
          (directories (eglotx-presets--context-directories context))
          (bin-directories (eglotx-presets--node-bin-directories context))
-         (typescript-local
-          (eglotx-presets--context-local-executable
+         (typescript-resolution
+          (eglotx-presets--node-resolution
            context "typescript-language-server" bin-directories))
-         (typescript
-          (eglotx-presets--context-resolve-executable
-           context "typescript-language-server" typescript-local))
-         (eslint-local
-          (and typescript
-               (not (eglotx-presets--backend-disabled-p 'eslint))
-               (eglotx-presets--context-local-executable
+         (typescript (cdr typescript-resolution))
+         (eslint-enabled
+          (not (eglotx-presets--add-on-disabled-p 'eslint)))
+         (tailwind-enabled
+          (not (eglotx-presets--add-on-disabled-p 'tailwindcss)))
+         (biome-enabled
+          (not (eglotx-presets--add-on-disabled-p 'biome)))
+         (graphql-enabled
+          (not (eglotx-presets--add-on-disabled-p 'graphql)))
+         (eslint-resolution
+          (and typescript eslint-enabled
+               (eglotx-presets--node-resolution
                 context "vscode-eslint-language-server" bin-directories)))
-         (tailwind-local
-          (and typescript
-               (not (eglotx-presets--backend-disabled-p 'tailwindcss))
-               (eglotx-presets--context-local-executable
+         (tailwind-resolution
+          (and typescript tailwind-enabled
+               (eglotx-presets--node-resolution
                 context "tailwindcss-language-server" bin-directories)))
-         (biome-local
-          (and typescript
-               (not (eglotx-presets--backend-disabled-p 'biome))
-               (eglotx-presets--context-local-executable
+         (biome-resolution
+          (and typescript biome-enabled
+               (eglotx-presets--node-resolution
                 context "biome" bin-directories)))
-         (graphql-local
-          (and typescript
-               (not (eglotx-presets--backend-disabled-p 'graphql))
-               (eglotx-presets--context-local-executable
+         (graphql-resolution
+          (and typescript graphql-enabled
+               (eglotx-presets--node-resolution
                 context "graphql-lsp" bin-directories)))
-         (graphql-executable
-          (and typescript
-               (not (eglotx-presets--backend-disabled-p 'graphql))
-               (eglotx-presets--context-resolve-executable
-                context "graphql-lsp" graphql-local)))
-         (eslint-executable
-          (and typescript
-               (not (eglotx-presets--backend-disabled-p 'eslint))
-               (eglotx-presets--context-resolve-executable
-                context "vscode-eslint-language-server" eslint-local)))
-         (tailwind-executable
-          (and typescript
-               (not (eglotx-presets--backend-disabled-p 'tailwindcss))
-               (eglotx-presets--context-resolve-executable
-                context "tailwindcss-language-server" tailwind-local)))
-         (biome-executable
-          (and typescript
-               (not (eglotx-presets--backend-disabled-p 'biome))
-               (eglotx-presets--context-resolve-executable
-                context "biome" biome-local)))
+         (eslint-local (car eslint-resolution))
+         (eslint-executable (cdr eslint-resolution))
+         (tailwind-local (car tailwind-resolution))
+         (tailwind-executable (cdr tailwind-resolution))
+         (biome-local (car biome-resolution))
+         (biome-executable (cdr biome-resolution))
+         (graphql-executable (cdr graphql-resolution))
          (intent-categories
           (delq nil
                 (list (and eslint-executable (not eslint-local) 'eslint)
@@ -1257,12 +1219,19 @@ an outer framework recipe can decide whether to preserve an earlier contact."
          (graphql
           (and graphql-executable
                (eglotx-presets--graphql-config-directory context)))
+         (ngserver-resolution
+          (when (and typescript
+                     (not (eglotx-presets--add-on-disabled-p 'angular)))
+            (eglotx-presets--node-resolution
+             context "ngserver" bin-directories)))
+         (ngserver-local (car ngserver-resolution))
+         (ngserver (cdr ngserver-resolution))
+         (angular
+          (and ngserver
+               (or ngserver-local
+                   (eglotx-presets--angular-intent-p context))))
          backends)
-    (if (not typescript)
-        (unless suppress-fallback
-          (eglotx-presets--missing-contact
-           interactive "typescript-language-server is not executable"
-           (eglotx-presets--context-project context)))
+    (when typescript
       (push (list :name "typescript"
                   :command (list typescript "--stdio")
                   :priority 100
@@ -1302,99 +1271,41 @@ an outer framework recipe can decide whether to preserve an earlier contact."
                     :required nil
                     :only eglotx-presets--graphql-only)
               backends))
-      (setq backends (nreverse backends))
-      (if (= (length backends) 1)
-          (plist-get (car backends) :command)
-        (apply #'eglotx-contact backends)))))
+      (when angular
+        (let ((probe-directory
+               (eglotx-presets--angular-probe-directory
+                ngserver-local context)))
+          (push (list
+                 :name "angular"
+                 :command
+                 (list ngserver "--stdio"
+                       "--tsProbeLocations" probe-directory
+                       "--ngProbeLocations" probe-directory)
+                 :priority 120
+                 :required nil
+                 :languages '("typescript")
+                 :only eglotx-presets--angular-only)
+                backends)))
+      (nreverse backends))))
 
 ;;;###autoload
-(defun eglotx-presets-typescript-contact (&optional interactive project)
-  "Return a JS/TS/React contact that never starts Angular Language Service.
-
-PROJECT defaults to the current project.  TypeScript is the required language
-server for JavaScript, JSX, TypeScript, and TSX.  ESLint, Tailwind CSS, and
-Biome join only when project signals or project-local server executables show
-intent.  GraphQL additionally requires structural GraphQL configuration; a
-local `graphql-lsp' alone is not intent.
-Tailwind v4 uses its core manifest dependency as the cheap signal and leaves
-CSS entrypoint discovery to the language server; legacy config markers remain
-a v3 fallback.  Project-local executables win over PATH when
-`eglotx-presets-prefer-project-local-servers' is non-nil.  When only
-TypeScript is available, return its ordinary Eglot argv and avoid the
-multiplexer entirely.
-
-Unlike `eglotx-presets-javascript-typescript-react-contact', this contact
-never starts Angular Language Service.  The bundled contact may add `ngserver'
-when the project has `angular.json', an `@angular/core' dependency, or a
-project-local `ngserver'.
-
-When INTERACTIVE is non-nil and TypeScript Language Server is unavailable,
-prefer the contact that preceded `eglotx-presets-mode', then return nil so
-Eglot can prompt for a command.  Noninteractive startup signals
-`eglotx-configuration-error' only when no preserved contact applies."
-  (eglotx-presets--typescript-contact-for-context
-   (eglotx-presets--make-context project) interactive))
-
-(defun eglotx-presets--angular-probe-directory (ngserver-local context)
-  "Return a Node resolution base for NGSERVER-LOCAL and CONTEXT."
-  (eglotx-presets--process-path
-   (if ngserver-local
-       (file-name-directory
-        (directory-file-name (file-name-directory ngserver-local)))
-     (eglotx-presets--context-root context))))
-
-;;;###autoload
-(defun eglotx-presets-javascript-typescript-react-contact
+(defun eglotx-presets-javascript-typescript-contact
     (&optional interactive project)
-  "Return the complete JavaScript, TypeScript, and React preset contact.
+  "Return the project-aware JavaScript and TypeScript cohort contact.
 
-TypeScript Language Server is the required primary.  Angular joins only when
-`ngserver' is executable and the project has `angular.json', an
-`@angular/core' dependency, or a project-local `ngserver'.  The Angular
-backend receives only the `typescript' language ID.  INTERACTIVE and PROJECT
-have the common preset-contact semantics documented by
-`eglotx-presets-mode'."
+The cohort covers JavaScript, JSX, TypeScript, and TSX, including React.
+TypeScript Language Server is the required primary.  Intent-gated ESLint,
+Tailwind CSS, Biome, and GraphQL backends join automatically.  Angular
+Language Service joins only when `ngserver' is executable and the project has
+`angular.json', an `@angular/core' dependency, or a project-local `ngserver'.
+It receives only the `typescript' language ID.  INTERACTIVE and PROJECT have
+the common preset-contact semantics documented by `eglotx-presets-mode'."
   (let* ((context (eglotx-presets--make-context project))
-         (bin-directories (eglotx-presets--node-bin-directories context))
-         (ngserver-resolution
-          (unless (eglotx-presets--backend-disabled-p 'angular)
-            (eglotx-presets--node-resolution
-             context "ngserver" bin-directories)))
-         (ngserver-local (car ngserver-resolution))
-         (ngserver (cdr ngserver-resolution))
-         (intent (and ngserver
-                      (or ngserver-local
-                          (eglotx-presets--angular-intent-p context)))))
-    (if (not intent)
-        (eglotx-presets--typescript-contact-for-context context interactive)
-      (let* ((base-contact
-             (eglotx-presets--typescript-contact-for-context
-               context interactive t))
-             (backends
-              (eglotx-presets--contact-backends
-               base-contact "typescript" 100))
-             (probe-directory
-              (eglotx-presets--angular-probe-directory
-               ngserver-local context)))
-        (if (null backends)
-            (eglotx-presets--missing-contact
-             interactive "typescript-language-server is not executable"
-             (eglotx-presets--context-project context))
-          (setq backends
-                (append
-                 backends
-                 (list
-                  (list
-                   :name "angular"
-                   :command
-                   (list ngserver "--stdio"
-                         "--tsProbeLocations" probe-directory
-                         "--ngProbeLocations" probe-directory)
-                   :priority 120
-                   :required nil
-                   :languages '("typescript")
-                   :only eglotx-presets--angular-only))))
-          (apply #'eglotx-contact backends))))))
+         (backends
+          (eglotx-presets--javascript-typescript-backends context)))
+    (eglotx-presets--materialize-contact
+     backends interactive "typescript-language-server is not executable"
+     (eglotx-presets--context-project context))))
 
 ;;;###autoload
 (defun eglotx-presets-html-contact (&optional interactive project)
@@ -1412,7 +1323,7 @@ INTERACTIVE and PROJECT have the common preset-contact semantics documented by
              ("html" "html-languageserver" "--stdio"))
            bin-directories))
          (tailwind-resolution
-          (unless (eglotx-presets--backend-disabled-p 'tailwindcss)
+          (unless (eglotx-presets--add-on-disabled-p 'tailwindcss)
             (eglotx-presets--node-resolution
              context "tailwindcss-language-server" bin-directories)))
          (tailwind-local (car tailwind-resolution))
@@ -1453,13 +1364,13 @@ INTERACTIVE and PROJECT have the common preset-contact semantics documented by
              ("css" "css-languageserver" "--stdio"))
            bin-directories))
          (biome-resolution
-          (unless (eglotx-presets--backend-disabled-p 'biome)
+          (unless (eglotx-presets--add-on-disabled-p 'biome)
             (eglotx-presets--node-resolution
              context "biome" bin-directories)))
          (biome-local (car biome-resolution))
          (biome-executable (cdr biome-resolution))
          (tailwind-resolution
-          (unless (eglotx-presets--backend-disabled-p 'tailwindcss)
+          (unless (eglotx-presets--add-on-disabled-p 'tailwindcss)
             (eglotx-presets--node-resolution
              context "tailwindcss-language-server" bin-directories)))
          (tailwind-local (car tailwind-resolution))
@@ -1513,7 +1424,7 @@ INTERACTIVE and PROJECT have the common preset-contact semantics documented by
              ("json" "json-languageserver" "--stdio"))
            bin-directories))
          (biome-resolution
-          (unless (eglotx-presets--backend-disabled-p 'biome)
+          (unless (eglotx-presets--add-on-disabled-p 'biome)
             (eglotx-presets--node-resolution
              context "biome" bin-directories)))
          (biome-local (car biome-resolution))
@@ -1554,7 +1465,7 @@ INTERACTIVE and PROJECT have the common preset-contact semantics documented by
                (eglotx-presets--graphql-config-directory context)))
          (graphql (and config-directory graphql-executable))
          (biome-resolution
-          (unless (eglotx-presets--backend-disabled-p 'biome)
+          (unless (eglotx-presets--add-on-disabled-p 'biome)
             (eglotx-presets--node-resolution
              context "biome" bin-directories)))
          (biome-local (car biome-resolution))
@@ -1605,7 +1516,7 @@ INTERACTIVE and PROJECT have the common preset-contact semantics documented by
            (contact
             (eglotx-presets--contact-from-lookup
              (eglot--lookup-mode major-mode))))
-      (unless (memq contact eglotx-presets--contact-functions)
+      (unless (memq contact eglotx-presets--owned-contact-functions)
         (if (functionp contact)
             (pcase (cdr (func-arity contact))
               (1 (funcall contact interactive))

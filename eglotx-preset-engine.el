@@ -45,13 +45,22 @@ enable the presets only for projects whose dependencies you trust."
   :type 'boolean
   :group 'eglotx-presets)
 
-(defcustom eglotx-presets-disabled-backends nil
-  "Backend names that bundled recipes must not start.
+(defcustom eglotx-presets-disabled-add-ons nil
+  "Optional add-ons that bundled recipes must not start.
 
-Each value is a symbol such as `ruff' or `golangci-lint'.  Primary backends
-are not disabled by this option; selecting an alternative primary belongs to
-the corresponding language recipe."
-  :type '(repeat symbol)
+Primary language servers and required companions are unaffected; selecting an
+alternative primary belongs to the corresponding language recipe.  Supported
+symbols are `angular', `biome', `eslint', `graphql', `golangci-lint', `ruff',
+`sorbet', and `tailwindcss'."
+  :type '(set
+          (const :tag "Angular Language Service" angular)
+          (const :tag "Biome" biome)
+          (const :tag "ESLint" eslint)
+          (const :tag "Embedded GraphQL Language Service" graphql)
+          (const :tag "GolangCI-Lint Language Server" golangci-lint)
+          (const :tag "Ruff" ruff)
+          (const :tag "Sorbet" sorbet)
+          (const :tag "Tailwind CSS Language Server" tailwindcss))
   :group 'eglotx-presets)
 
 (defconst eglotx-presets--manifest-size-limit (* 1024 1024)
@@ -443,12 +452,6 @@ never enumerated because TRAMP must fetch a complete listing before filtering."
   (when path
     (if (file-remote-p path) (file-local-name path) path)))
 
-(defun eglotx-presets--resolve-executable (program local root)
-  "Resolve PROGRAM from LOCAL or ROOT's PATH according to user policy."
-  (eglotx-presets--process-path
-   (or (and eglotx-presets-prefer-project-local-servers local)
-       (eglotx-presets--path-executable program root))))
-
 (defun eglotx-presets--context-resolve-executable (context program local)
   "Resolve PROGRAM from LOCAL or CONTEXT's PATH according to user policy."
   (eglotx-presets--process-path
@@ -461,9 +464,9 @@ never enumerated because TRAMP must fetch a complete listing before filtering."
       (eglot-path-to-uri path)
     (funcall (intern "eglot--path-to-uri") path)))
 
-(defun eglotx-presets--backend-disabled-p (name)
-  "Return non-nil when optional backend NAME is disabled."
-  (memq name eglotx-presets-disabled-backends))
+(defun eglotx-presets--add-on-disabled-p (name)
+  "Return non-nil when optional add-on NAME is disabled."
+  (memq name eglotx-presets-disabled-add-ons))
 
 (defun eglotx-presets--missing-contact
     (interactive missing-message &optional project)

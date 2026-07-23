@@ -150,26 +150,23 @@ INTERACTIVE and PROJECT have the common preset-contact semantics documented by
          (gopls
           (eglotx-presets--context-resolve-executable
            context "gopls" gopls-local))
+         (golangci-enabled
+          (and gopls
+               (not (eglotx-presets--add-on-disabled-p 'golangci-lint))))
          (server-local
-          (when (and gopls
-                     (not (eglotx-presets--backend-disabled-p
-                           'golangci-lint)))
+          (when golangci-enabled
             (eglotx-presets--context-local-executable
              context "golangci-lint-langserver" bin-directories)))
          (linter-local
-          (when (and gopls
-                     (not (eglotx-presets--backend-disabled-p
-                           'golangci-lint)))
+          (when golangci-enabled
             (eglotx-presets--context-local-executable
              context "golangci-lint" bin-directories)))
          (server-executable
-          (and gopls
-               (not (eglotx-presets--backend-disabled-p 'golangci-lint))
+          (and golangci-enabled
                (eglotx-presets--context-resolve-executable
                 context "golangci-lint-langserver" server-local)))
          (linter-executable
-          (and gopls
-               (not (eglotx-presets--backend-disabled-p 'golangci-lint))
+          (and golangci-enabled
                (eglotx-presets--context-resolve-executable
                 context "golangci-lint" linter-local)))
          (config

@@ -91,7 +91,7 @@ live in [`architecture.md`](architecture.md); dated research is non-normative.
 - Contact resolution has bounded ancestor, file-read, and marker-candidate
   budgets and caches repeated fixed-file and executable probes for that one
   resolution.  Remote projects skip directory-listing marker discovery.
-- `eglotx-presets-disabled-backends` suppresses only optional add-ons; replacing
+- `eglotx-presets-disabled-add-ons` suppresses only optional add-ons; replacing
   a primary or an entire recipe requires a user contact ahead of the catalog.
 
 ## LSP semantics

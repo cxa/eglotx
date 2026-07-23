@@ -17,7 +17,9 @@ This also loads the core.  The adapter only adds `textEdit` to Eglot's
 advertised completion resolve properties, a field Eglot already consumes.  It
 does not replace Eglot's CAPF or depend on Corfu.  Requiring `eglotx` directly
 keeps the core-only compatibility path, which eagerly materializes shared
-completion edit ranges.  `eglotx-presets` loads the adapter automatically.
+completion edit ranges.  An installed package autoloads
+`eglotx-presets-mode`; enabling that mode loads `eglotx-presets` and the
+adapter automatically.
 
 ## `eglotx-contact`
 
@@ -131,24 +133,26 @@ Use `M-x customize-group RET eglotx` for the core and
 | `eglotx-cross-backend-request-limit` | `64` | Directed adapter requests simultaneously in flight per facade. |
 | `eglotx-cross-backend-request-timeout` | `30` | Maximum seconds for one directed adapter request. |
 | `eglotx-presets-prefer-project-local-servers` | `t` | Probe each recipe's bounded project-local executable locations before PATH. |
-| `eglotx-presets-disabled-backends` | `nil` | Optional preset add-on symbols to suppress; primary selection is unaffected. |
+| `eglotx-presets-disabled-add-ons` | `nil` | Optional preset add-ons to suppress; primary language servers and required companions are unaffected. |
 
-## Preset contacts
+## Preset mode and manual contacts
 
-`eglotx-presets-mode` globally installs project-aware entries.  Their
-autoloaded contacts are `eglotx-presets-svelte-contact`,
+The default preset interface is the autoloaded global
+`eglotx-presets-mode`.  Enabling it installs the complete project-aware catalog;
+ordinary users do not need to select or register individual contacts.
+
+For advanced manual mappings, the autoloaded contacts are
+`eglotx-presets-svelte-contact`,
 `eglotx-presets-astro-contact`,
 `eglotx-presets-vue-contact`,
-`eglotx-presets-javascript-typescript-react-contact`,
+`eglotx-presets-javascript-typescript-contact`,
 `eglotx-presets-html-contact`,
 `eglotx-presets-css-contact`, `eglotx-presets-json-contact`,
 `eglotx-presets-graphql-contact`, `eglotx-presets-python-contact`,
 `eglotx-presets-go-contact`, and `eglotx-presets-ruby-contact`.
-For a manual entry that must never start Angular Language Service, use
-`eglotx-presets-typescript-contact`.  It applies the same TypeScript, ESLint,
-Tailwind CSS, Biome, and GraphQL rules as the bundled
-JavaScript/TypeScript/React contact; the only difference is that it never adds
-`ngserver`.
+The JavaScript/TypeScript contact covers JavaScript, JSX, TypeScript, and TSX,
+including React, and applies the same intent-gated Angular behavior as the
+bundled cohort.
 
 Each contact accepts optional `INTERACTIVE` and `PROJECT` arguments.  `PROJECT`
 defaults to the current project.  Missing required components first delegate

@@ -6,6 +6,12 @@ All notable changes to Eglotx are documented in this file. The project uses
 
 ## [Unreleased]
 
+### Added
+
+- A minimal Angular fixture and opt-in real-server E2E target covering
+  project-local TypeScript and Angular language servers, Angular probe
+  arguments, and TypeScript plus inline-template diagnostics.
+
 ### Changed
 
 - The manual core example now covers both Python major modes and explicitly
@@ -15,10 +21,14 @@ All notable changes to Eglotx are documented in this file. The project uses
   archived `cxa/lspx` and `eglot-lspx` stack, and records the performance
   lessons carried forward from `cape-tailwindcss` without implying code or API
   compatibility.
-- The installed JavaScript/TypeScript/React entry now uses the accurately named
-  `eglotx-presets-javascript-typescript-react-contact`; Angular is documented
-  as an optional backend activated only by Angular project signals and
-  restricted to TypeScript documents.
+- The preset documentation now centers `eglotx-presets-mode` as the default
+  interface.  The JavaScript/TypeScript language family covers JavaScript,
+  JSX, TypeScript, and TSX, including React.
+- The single advanced JavaScript/TypeScript contact is
+  `eglotx-presets-javascript-typescript-contact`; Angular remains an
+  automatically detected add-on restricted to TypeScript documents.
+- `eglotx-presets-disabled-add-ons` provides a closed Customize set for the
+  exceptional case where a detected optional add-on must be suppressed.
 
 ## [0.1.2] - 2026-07-20
 
