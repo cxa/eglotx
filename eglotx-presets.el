@@ -167,7 +167,7 @@
     :workspace/diagnostic)
   "Methods owned by Tailwind beside an embedded-language primary.")
 
-(defconst eglotx-presets--typescript-entry
+(defconst eglotx-presets--javascript-typescript-react-entry
   '(((js-jsx-mode :language-id "javascriptreact")
      (rjsx-mode :language-id "javascriptreact")
      (js2-jsx-mode :language-id "javascriptreact")
@@ -182,7 +182,7 @@
      (jtsx-typescript-mode :language-id "typescript")
      (typescript-mode :language-id "typescript")
      (typescript-ts-mode :language-id "typescript"))
-    . eglotx-presets-angular-contact)
+    . eglotx-presets-javascript-typescript-react-contact)
   "Entry installed for one JavaScript/TypeScript/React project cohort.")
 
 (defconst eglotx-presets--svelte-entry
@@ -235,7 +235,7 @@
   (list eglotx-presets--svelte-entry
         eglotx-presets--astro-entry
         eglotx-presets--vue-entry
-        eglotx-presets--typescript-entry
+        eglotx-presets--javascript-typescript-react-entry
         eglotx-presets--html-entry
         eglotx-presets--css-entry
         eglotx-presets--json-entry
@@ -258,7 +258,7 @@
   '(eglotx-presets-svelte-contact
     eglotx-presets-astro-contact
     eglotx-presets-vue-contact
-    eglotx-presets-angular-contact
+    eglotx-presets-javascript-typescript-react-contact
     eglotx-presets-typescript-contact
     eglotx-presets-html-contact
     eglotx-presets-css-contact
@@ -1309,7 +1309,7 @@ an outer framework recipe can decide whether to preserve an earlier contact."
 
 ;;;###autoload
 (defun eglotx-presets-typescript-contact (&optional interactive project)
-  "Return a project-aware Eglot contact for JavaScript, TypeScript, and React.
+  "Return a JS/TS/React contact that never starts Angular Language Service.
 
 PROJECT defaults to the current project.  TypeScript is the required language
 server for JavaScript, JSX, TypeScript, and TSX.  ESLint, Tailwind CSS, and
@@ -1322,6 +1322,11 @@ a v3 fallback.  Project-local executables win over PATH when
 `eglotx-presets-prefer-project-local-servers' is non-nil.  When only
 TypeScript is available, return its ordinary Eglot argv and avoid the
 multiplexer entirely.
+
+Unlike `eglotx-presets-javascript-typescript-react-contact', this contact
+never starts Angular Language Service.  The bundled contact may add `ngserver'
+when the project has `angular.json', an `@angular/core' dependency, or a
+project-local `ngserver'.
 
 When INTERACTIVE is non-nil and TypeScript Language Server is unavailable,
 prefer the contact that preceded `eglotx-presets-mode', then return nil so
@@ -1339,10 +1344,15 @@ Eglot can prompt for a command.  Noninteractive startup signals
      (eglotx-presets--context-root context))))
 
 ;;;###autoload
-(defun eglotx-presets-angular-contact (&optional interactive project)
-  "Return an Angular-aware TypeScript-only contact, or the generic contact.
+(defun eglotx-presets-javascript-typescript-react-contact
+    (&optional interactive project)
+  "Return the complete JavaScript, TypeScript, and React preset contact.
 
-INTERACTIVE and PROJECT have the common preset-contact semantics documented by
+TypeScript Language Server is the required primary.  Angular joins only when
+`ngserver' is executable and the project has `angular.json', an
+`@angular/core' dependency, or a project-local `ngserver'.  The Angular
+backend receives only the `typescript' language ID.  INTERACTIVE and PROJECT
+have the common preset-contact semantics documented by
 `eglotx-presets-mode'."
   (let* ((context (eglotx-presets--make-context project))
          (bin-directories (eglotx-presets--node-bin-directories context))

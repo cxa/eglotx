@@ -139,12 +139,16 @@ Use `M-x customize-group RET eglotx` for the core and
 autoloaded contacts are `eglotx-presets-svelte-contact`,
 `eglotx-presets-astro-contact`,
 `eglotx-presets-vue-contact`,
-`eglotx-presets-angular-contact`, `eglotx-presets-html-contact`,
+`eglotx-presets-javascript-typescript-react-contact`,
+`eglotx-presets-html-contact`,
 `eglotx-presets-css-contact`, `eglotx-presets-json-contact`,
 `eglotx-presets-graphql-contact`, `eglotx-presets-python-contact`,
 `eglotx-presets-go-contact`, and `eglotx-presets-ruby-contact`.
-`eglotx-presets-typescript-contact` is also public for a manual generic
-JS/TS/React mapping without the Angular detector.
+For a manual entry that must never start Angular Language Service, use
+`eglotx-presets-typescript-contact`.  It applies the same TypeScript, ESLint,
+Tailwind CSS, Biome, and GraphQL rules as the bundled
+JavaScript/TypeScript/React contact; the only difference is that it never adds
+`ngserver`.
 
 Each contact accepts optional `INTERACTIVE` and `PROJECT` arguments.  `PROJECT`
 defaults to the current project.  Missing required components first delegate

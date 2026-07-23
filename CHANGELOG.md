@@ -15,6 +15,10 @@ All notable changes to Eglotx are documented in this file. The project uses
   archived `cxa/lspx` and `eglot-lspx` stack, and records the performance
   lessons carried forward from `cape-tailwindcss` without implying code or API
   compatibility.
+- The installed JavaScript/TypeScript/React entry now uses the accurately named
+  `eglotx-presets-javascript-typescript-react-contact`; Angular is documented
+  as an optional backend activated only by Angular project signals and
+  restricted to TypeScript documents.
 
 ## [0.1.2] - 2026-07-20
 

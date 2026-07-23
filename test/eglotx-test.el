@@ -537,7 +537,8 @@ REQUEST-DISPATCHER handles child-to-client requests when supplied."
         (should-not (eq (cdar copy) (cdar languages)))))))
 
 (ert-deftest eglotx-react-preset-language-ids-reach-backends ()
-  (let* ((eglot-server-programs (list eglotx-presets--typescript-entry))
+  (let* ((eglot-server-programs
+          (list eglotx-presets--javascript-typescript-react-entry))
          (languages (car (eglot--lookup-mode 'rjsx-mode))))
     (eglotx-test--with-server
         (server

@@ -330,7 +330,7 @@ Return a cons of its executable and package directory."
 (ert-deftest eglotx-presets-vue-entry-is-specific-and-precedes-web-entries ()
   (should
    (< (cl-position eglotx-presets--vue-entry eglotx-presets--entries :test #'eq)
-      (cl-position eglotx-presets--typescript-entry
+      (cl-position eglotx-presets--javascript-typescript-react-entry
                    eglotx-presets--entries :test #'eq)))
   (should
    (< (cl-position eglotx-presets--vue-entry eglotx-presets--entries :test #'eq)
@@ -1362,14 +1362,16 @@ Return a cons of its executable and package directory."
 
 (ert-deftest eglotx-presets-mode-preserves-equal-user-entry ()
   (eglotx-presets-test--with-mode-state
-    (let* ((user-entry (copy-tree eglotx-presets--typescript-entry))
+    (let* ((user-entry
+            (copy-tree eglotx-presets--javascript-typescript-react-entry))
            (eglot-server-programs (list user-entry))
            (eglotx-presets--installed-entries nil))
       (unwind-protect
           (progn
             (eglotx-presets-mode 1)
-            (should (= (cl-count eglotx-presets--typescript-entry
-                                 eglot-server-programs :test #'equal)
+            (should (= (cl-count
+                        eglotx-presets--javascript-typescript-react-entry
+                        eglot-server-programs :test #'equal)
                        2)))
         (eglotx-presets-mode -1))
       (should (equal eglot-server-programs (list user-entry)))
@@ -2089,7 +2091,8 @@ Return a cons of its executable and package directory."
         (eglotx-presets--make-context
          (eglotx-presets-test--project root)))))))
 
-(ert-deftest eglotx-presets-angular-contact-is-typescript-only ()
+(ert-deftest
+    eglotx-presets-javascript-typescript-react-adds-typescript-only-angular ()
   (eglotx-presets-test--with-directory (root)
     (let ((typescript
            (eglotx-presets-test--local-server
@@ -2099,7 +2102,7 @@ Return a cons of its executable and package directory."
       (let* ((default-directory root)
              (exec-path nil)
              (contact
-              (eglotx-presets-angular-contact
+              (eglotx-presets-javascript-typescript-react-contact
                nil (eglotx-presets-test--project root)))
              (angular (eglotx-presets-test--backend contact "angular")))
         (should (equal (plist-get
@@ -2109,14 +2112,20 @@ Return a cons of its executable and package directory."
         (should (equal (car (plist-get angular :command)) ngserver))
         (should (equal (cadr (plist-get angular :command)) "--stdio"))
         (should (equal (plist-get angular :languages) '("typescript"))))
-      (let ((modes (car eglotx-presets--typescript-entry)))
+      (let ((modes
+             (car eglotx-presets--javascript-typescript-react-entry)))
         (should (member '(typescript-mode :language-id "typescript") modes))
         (should (member '(js-mode :language-id "javascript") modes))
         (should
          (member '(tsx-ts-mode :language-id "typescriptreact") modes))))))
 
+(ert-deftest eglotx-presets-javascript-typescript-react-entry-is-canonical ()
+  (should
+   (eq (cdr eglotx-presets--javascript-typescript-react-entry)
+       'eglotx-presets-javascript-typescript-react-contact)))
+
 (ert-deftest eglotx-presets-react-modes-use-exact-language-ids ()
-  (let ((modes (car eglotx-presets--typescript-entry)))
+  (let ((modes (car eglotx-presets--javascript-typescript-react-entry)))
     (dolist (mode '(js-jsx-mode rjsx-mode js2-jsx-mode
                     jtsx-jsx-mode))
       (should
@@ -2137,7 +2146,8 @@ Return a cons of its executable and package directory."
       (should (< (cl-position (car pair) modes :key #'car)
                  (cl-position (cdr pair) modes :key #'car))))))
 
-(ert-deftest eglotx-presets-angular-contact-delegates-outside-angular ()
+(ert-deftest
+    eglotx-presets-javascript-typescript-react-delegates-outside-angular ()
   (eglotx-presets-test--with-directory (root)
     (let ((typescript
            (eglotx-presets-test--local-server
@@ -2146,11 +2156,12 @@ Return a cons of its executable and package directory."
             (exec-path nil))
         (should
          (equal
-          (eglotx-presets-angular-contact
+          (eglotx-presets-javascript-typescript-react-contact
            nil (eglotx-presets-test--project root))
           (list typescript "--stdio")))))))
 
-(ert-deftest eglotx-presets-angular-missing-primary-uses-preserved-contact ()
+(ert-deftest
+    eglotx-presets-javascript-typescript-react-uses-preserved-contact ()
   (eglotx-presets-test--with-directory (root)
     (eglotx-presets-test--with-mode-state
       (eglotx-presets-test--local-server root "ngserver")
@@ -2169,11 +2180,14 @@ Return a cons of its executable and package directory."
             (progn
               (eglotx-presets-mode 1)
               (should
-               (equal (eglotx-presets-angular-contact nil project)
-                      fallback)))
+               (equal
+                (eglotx-presets-javascript-typescript-react-contact
+                 nil project)
+                fallback)))
           (eglotx-presets-mode -1))))))
 
-(ert-deftest eglotx-presets-angular-contact-shares-one-discovery-context ()
+(ert-deftest
+    eglotx-presets-javascript-typescript-react-shares-one-context ()
   (eglotx-presets-test--with-directory (root)
     (eglotx-presets-test--local-server root "typescript-language-server")
     (eglotx-presets-test--local-server root "ngserver")
@@ -2186,7 +2200,7 @@ Return a cons of its executable and package directory."
                  (lambda (&optional project)
                    (cl-incf calls)
                    (funcall original project))))
-        (eglotx-presets-angular-contact
+        (eglotx-presets-javascript-typescript-react-contact
          nil (eglotx-presets-test--project root))
         (should (= calls 1))))))
 
@@ -2279,16 +2293,21 @@ Return a cons of its executable and package directory."
           (dolist (case
                    `((jsonc-mode ,eglotx-presets--json-entry "jsonc")
                      (scss-mode ,eglotx-presets--css-entry "scss")
-                     (js2-jsx-mode ,eglotx-presets--typescript-entry
-                                   "javascriptreact")
-                     (rjsx-mode ,eglotx-presets--typescript-entry
-                                "javascriptreact")
-                     (jtsx-jsx-mode ,eglotx-presets--typescript-entry
-                                    "javascriptreact")
-                     (jtsx-tsx-mode ,eglotx-presets--typescript-entry
-                                    "typescriptreact")
-                     (tsx-mode ,eglotx-presets--typescript-entry
-                               "typescriptreact")))
+                     (js2-jsx-mode
+                      ,eglotx-presets--javascript-typescript-react-entry
+                      "javascriptreact")
+                     (rjsx-mode
+                      ,eglotx-presets--javascript-typescript-react-entry
+                      "javascriptreact")
+                     (jtsx-jsx-mode
+                      ,eglotx-presets--javascript-typescript-react-entry
+                      "javascriptreact")
+                     (jtsx-tsx-mode
+                      ,eglotx-presets--javascript-typescript-react-entry
+                      "typescriptreact")
+                     (tsx-mode
+                      ,eglotx-presets--javascript-typescript-react-entry
+                      "typescriptreact")))
             (let* ((mode (nth 0 case))
                    (eglot-server-programs (list (nth 1 case)))
                    (languages (car (eglot--lookup-mode mode)))

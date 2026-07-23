@@ -181,7 +181,7 @@
   (add-to-list
    'eglot-server-programs
    '(((eglotx-preset-e2e--tsx-mode :language-id "typescriptreact"))
-     . eglotx-presets-typescript-contact))
+     . eglotx-presets-javascript-typescript-react-contact))
   (unwind-protect
       (progn
         (setq buffer (find-file-noselect source))

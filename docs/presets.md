@@ -32,7 +32,7 @@ The global mode prepends the following entries to
 | Svelte | Svelte single-file components | `eglotx-presets-svelte-contact` |
 | Astro | Astro components | `eglotx-presets-astro-contact` |
 | Vue | Vue single-file components | `eglotx-presets-vue-contact` |
-| JavaScript/TypeScript/React (Angular-aware) | JavaScript, React JSX, TypeScript, and React TSX | `eglotx-presets-angular-contact` |
+| JavaScript/TypeScript/React | JavaScript, React JSX, TypeScript, and React TSX | `eglotx-presets-javascript-typescript-react-contact` |
 | HTML | HTML | `eglotx-presets-html-contact` |
 | CSS | CSS, SCSS, and Less | `eglotx-presets-css-contact` |
 | JSON | JSON and JSON-with-comments | `eglotx-presets-json-contact` |
@@ -57,15 +57,17 @@ their non-React language IDs.  Specific JSX/TSX modes precede their generic
 parent modes so Eglot cannot collapse React buffers to `javascript` or
 `typescript`.
 
-That entry always resolves the ordinary JS/TS/React stack and adds Angular only
-when Angular intent is present.  The Angular backend declares `:languages
-("typescript")`, so JavaScript, JSX, and TSX stay in the same Eglot cohort
-without being sent to `ngserver`.  The Go entry keeps source, module, and
-workspace buffers in gopls's complete cohort, while the GolangCI add-on
-declares `:languages ("go")` and never receives `go.mod` or `go.work` traffic.
-Similarly, the CSS entry groups CSS, SCSS, and Less, but its Biome add-on
-accepts only `css`; the structural CSS primary and Tailwind remain available
-to the whole cohort.
+The `eglotx-presets-javascript-typescript-react-contact` entry always resolves
+the ordinary JS/TS/React stack.  Angular is not the cohort or its primary; it
+joins only when `ngserver` is executable and the project has `angular.json`,
+an `@angular/core` dependency, or a project-local `ngserver`.  The Angular
+backend declares `:languages ("typescript")`, so JavaScript, JSX, and TSX stay
+in the same Eglot cohort without being sent to `ngserver`.  The Go entry keeps
+source, module, and workspace buffers in gopls's complete cohort, while the
+GolangCI add-on declares `:languages ("go")` and never receives `go.mod` or
+`go.work` traffic.  Similarly, the CSS entry groups CSS, SCSS, and Less, but
+its Biome add-on accepts only `css`; the structural CSS primary and Tailwind
+remain available to the whole cohort.
 
 Each mapping supplies an exact LSP language ID.  `jsonc-mode` is deliberately
 listed before its JSON parent modes so Eglot preserves the `jsonc` ID.  Enabling
@@ -105,8 +107,15 @@ its exact ID ahead of the bundled entry while reusing the contact:
  'eglot-server-programs
  '(((my-typescript-mode :language-id "typescript")
     (my-tsx-mode :language-id "typescriptreact"))
-   . eglotx-presets-typescript-contact))
+   . eglotx-presets-javascript-typescript-react-contact))
 ```
+
+This reuses the same contact as the bundled cohort, so it may add an executable
+`ngserver` for a project with `angular.json`, an `@angular/core` dependency,
+or a project-local `ngserver`.  If a manual mapping must never start Angular
+Language Service, use `eglotx-presets-typescript-contact`.  It applies the
+same TypeScript, ESLint, Tailwind CSS, Biome, and GraphQL rules as the bundled
+contact; the only difference is that it never adds `ngserver`.
 
 The presets do not guess the language of arbitrary derived modes.  In
 particular, `web-mode` can represent React, ordinary HTML, and other template
@@ -372,7 +381,7 @@ protocol and detection evidence.
 
 ### JavaScript, TypeScript, React, ESLint, Tailwind, and Biome
 
-The generic JS/TS/React recipe always requires TypeScript Language Server.
+The bundled JS/TS/React recipe always requires TypeScript Language Server.
 React is part of this cohort rather than a separate preset, so JSX and TSX get
 the same intent-gated ESLint, Tailwind CSS, Biome, and GraphQL add-ons.  Each
 add-on joins independently when both executable resolution and its own intent
@@ -393,7 +402,7 @@ installed ESLint generation to select its supported flat or legacy behavior.
 Invalid ESLint configuration can still suppress rule diagnostics and should
 be reproducible with the project's ESLint CLI.
 
-In the generic JS/TS/React contact, ESLint and Tailwind use the capabilities
+In the bundled JS/TS/React contact, ESLint and Tailwind use the capabilities
 they actually negotiate; Eglotx merges collection results and uses the
 documented priorities for singleton methods.  Embedded Svelte/Astro/Vue contacts
 additionally apply role-specific `:only` lists so these add-ons cannot claim
@@ -448,9 +457,10 @@ declares a schema can therefore start one GraphQL process for a JS/TS/React
 cohort; the server may then ignore documents that do not match its own
 configuration.
 
-Angular activates from `angular.json`, an exact `@angular/core` dependency, or
-a project-local `ngserver`.  It is part of the single JS/TS/React contact but
-accepts only the `typescript` language ID.  The add-on is restricted to Angular-aware
+Angular Language Service is added only when `ngserver` is executable and the
+project has `angular.json`, an exact `@angular/core` dependency, or a
+project-local `ngserver`.  When added, it accepts only the `typescript`
+language ID.  The add-on is restricted to Angular-aware
 completion, hover, signature, navigation, references, implementation, rename,
 code actions, diagnostics, and commands; formatting and general workspace
 ownership stay with the base stack.  Probe locations are derived from the
