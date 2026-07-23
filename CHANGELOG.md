@@ -6,6 +6,8 @@ All notable changes to Eglotx are documented in this file. The project uses
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-07-23
+
 ### Added
 
 - A minimal Angular fixture and opt-in real-server E2E target covering
@@ -21,14 +23,20 @@ All notable changes to Eglotx are documented in this file. The project uses
   archived `cxa/lspx` and `eglot-lspx` stack, and records the performance
   lessons carried forward from `cape-tailwindcss` without implying code or API
   compatibility.
-- The preset documentation now centers `eglotx-presets-mode` as the default
-  interface.  The JavaScript/TypeScript language family covers JavaScript,
-  JSX, TypeScript, and TSX, including React.
-- The single advanced JavaScript/TypeScript contact is
-  `eglotx-presets-javascript-typescript-contact`; Angular remains an
-  automatically detected add-on restricted to TypeScript documents.
-- `eglotx-presets-disabled-add-ons` provides a closed Customize set for the
-  exceptional case where a detected optional add-on must be suppressed.
+- Preset setup now centers the autoloaded `eglotx-presets-mode` as the default
+  interface, treats individual contact functions as an advanced mapping API,
+  and removes a redundant explicit `require` from installed-package setup.
+- The published `eglotx-presets-angular-contact` and
+  `eglotx-presets-typescript-contact` are replaced by
+  `eglotx-presets-javascript-typescript-contact`.  The replacement preserves
+  the existing local-first, zero-configuration behavior: JavaScript, JSX,
+  TypeScript, and TSX, including React, remain one cohort, while Angular still
+  joins only projects with detected intent and remains restricted to
+  TypeScript documents.  Existing manual mappings must use the new contact.
+- The published `eglotx-presets-disabled-backends` variable is replaced by
+  `eglotx-presets-disabled-add-ons`, a closed Customize set for the eight
+  supported optional add-ons.  Its default remains `nil`; existing
+  configurations must use the new name.
 
 ## [0.1.2] - 2026-07-20
 
@@ -131,7 +139,8 @@ All notable changes to Eglotx are documented in this file. The project uses
   Tailwind-to-Corfu E2E targets.
 - CI checks on Emacs 29.4, 30.2, and the current snapshot build.
 
-[Unreleased]: https://github.com/cxa/eglotx/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/cxa/eglotx/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/cxa/eglotx/releases/tag/v0.1.3
 [0.1.2]: https://github.com/cxa/eglotx/releases/tag/v0.1.2
 [0.1.1]: https://github.com/cxa/eglotx/releases/tag/v0.1.1
 [0.1.0]: https://github.com/cxa/eglotx/releases/tag/v0.1.0
