@@ -634,6 +634,7 @@ are opt-in:
 | --- | --- |
 | `make test-eslint-e2e` | Three resolved backends, React TSX TypeScript/ESLint diagnostics, Tailwind completion/resolve, and TypeScript formatter ownership |
 | `make test-biome-e2e` | Three resolved backends, React TSX TypeScript/Biome diagnostics, Tailwind completion/resolve, and Biome formatter ownership |
+| `make test-angular-e2e` | Project-local TypeScript and Angular language servers, Angular probe arguments, and TypeScript plus inline-template diagnostics |
 | `make test-vue-e2e` | Project-local VLS, TLS, ESLint, and Tailwind; the VLS/TLS bridge; TypeScript and ESLint diagnostics |
 | `make test-svelte-eslint-e2e` | Project-local Svelte, ESLint, and Tailwind; type/ESLint diagnostics, Svelte and Tailwind completion/resolve ownership, rune validity, and Svelte formatting |
 | `make test-svelte-biome-e2e` | Project-local Svelte, Biome, and Tailwind; type/Biome diagnostics, Svelte and Tailwind completion/resolve ownership, rune validity, and explicit Biome formatting |
@@ -642,7 +643,7 @@ are opt-in:
 | `make test-astro-biome-e2e` | Project-local Astro, Biome, TypeScript SDK, and Tailwind; Astro/Biome diagnostics, Astro and Tailwind completion/resolve ownership, and explicit Biome formatting |
 | `make test-astro-e2e` | Both Astro targets above |
 | `make test-corfu-e2e` | A real Tailwind response through Eglot CAPF, Orderless, and Corfu, including an old candidate after replacement CAPFs and GC |
-| `make test-presets-e2e` | The generic ESLint/Biome, Vue, Svelte, and Astro targets above |
+| `make test-presets-e2e` | The React, Angular, Vue, Svelte, and Astro targets above |
 
 Python/Ruff, Go/GolangCI-Lint, Ruby/Sorbet, and Vue/Biome currently have
 fixture-based ERT coverage but no bundled real-toolchain target.  CI runs

@@ -13,7 +13,7 @@ RELEASE_VERSION ?=
 RELEASE_DATE ?=
 
 .PHONY: all deps deps-corfu-e2e compile test check test-eslint-e2e \
-	test-biome-e2e test-vue-e2e test-svelte-eslint-e2e \
+	test-biome-e2e test-angular-e2e test-vue-e2e test-svelte-eslint-e2e \
 	test-svelte-biome-e2e test-svelte-e2e test-astro-eslint-e2e \
 	test-astro-biome-e2e test-astro-e2e \
 	test-presets-e2e test-corfu-e2e benchmark release-check clean
@@ -59,6 +59,9 @@ test-biome-e2e:
 	EGLOTX_E2E_BACKEND=biome \
 	$(EMACS_BATCH) -L test -l test/eglotx-preset-e2e.el
 
+test-angular-e2e:
+	$(EMACS_BATCH) -L test -l test/eglotx-angular-preset-e2e.el
+
 test-vue-e2e:
 	$(EMACS_BATCH) -L test -l test/eglotx-vue-preset-e2e.el
 
@@ -82,8 +85,8 @@ test-astro-biome-e2e:
 
 test-astro-e2e: test-astro-eslint-e2e test-astro-biome-e2e
 
-test-presets-e2e: test-eslint-e2e test-biome-e2e test-vue-e2e \
-	test-svelte-e2e test-astro-e2e
+test-presets-e2e: test-eslint-e2e test-biome-e2e test-angular-e2e \
+	test-vue-e2e test-svelte-e2e test-astro-e2e
 
 test-corfu-e2e:
 	EGLOTX_E2E_PROJECT=react_ts_tailwind_eslint \

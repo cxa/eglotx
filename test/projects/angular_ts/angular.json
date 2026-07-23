@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "projects": {
+    "eglotx-angular-ts-fixture": {
+      "projectType": "application",
+      "root": "",
+      "sourceRoot": "src"
+    }
+  }
+}

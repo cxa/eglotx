@@ -240,7 +240,7 @@ make deps-corfu-e2e # install optional Corfu/Orderless E2E dependencies
 make compile    # byte-compile with warnings promoted to errors
 make test       # run the ERT integration suite
 make check      # clean, compile, and test
-make test-presets-e2e # opt-in real ESLint/Biome/Vue/Svelte/Astro smoke tests
+make test-presets-e2e # opt-in real React/Angular/Vue/Svelte/Astro smoke tests
 make test-corfu-e2e # real Tailwind -> Eglot -> Orderless -> Corfu insertion
 make benchmark  # run repeatable protocol hot-path microbenchmarks
 ```

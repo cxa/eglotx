@@ -5,6 +5,8 @@ backends for hermetic contact tests and opt-in real-server E2E tests:
 
 - `react_ts_tailwind_eslint` activates TypeScript, Tailwind CSS v4, and ESLint.
 - `react_ts_tailwind_biome` activates TypeScript, Tailwind CSS v4, and Biome.
+- `angular_ts` activates TypeScript Language Server and Angular Language
+  Service for a standalone component with an inline template.
 - `vue_ts_tailwind_eslint` activates the Vue/TypeScript hybrid stack, Tailwind
   CSS v4, and ESLint.
 - `vue_ts_tailwind_biome` activates the Vue/TypeScript hybrid stack, Tailwind
@@ -33,16 +35,19 @@ project-local `svelteserver`, `tailwindcss-language-server`, and their selected
 ESLint or Biome backend.  The Astro E2E targets require project-local
 `astro-ls`, TypeScript, `tailwindcss-language-server`, and their selected
 ESLint or Biome backend; the fixtures also include Prettier and its Astro
-plugin so the Astro formatter path is testable.  The remaining fixtures keep
-intent, command, and cohort tests reproducible without making the default suite
-depend on external toolchains.
+plugin so the Astro formatter path is testable.  The Angular E2E target
+requires project-local `typescript-language-server` and `ngserver`.  Run
+`npm install` under `angular_ts` before invoking it; the test checks local
+precedence, Angular probe locations, and both TypeScript and inline-template
+diagnostics.  The remaining fixtures keep intent, command, and cohort tests
+reproducible without making the default suite depend on external toolchains.
 
 ```sh
 make check
 make test-presets-e2e
 ```
 
-The aggregate E2E target includes the generic Web, Vue, Svelte, and Astro
+The aggregate E2E target includes the React, Angular, Vue, Svelte, and Astro
 scenarios.  See the preset
 [verification matrix](../../docs/presets.md#verification-matrix) for individual
 targets and their assertions.

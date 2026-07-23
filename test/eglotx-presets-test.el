@@ -166,12 +166,13 @@ Return a cons of its executable and package directory."
                    (concat "node_modules/.bin/" (cdr entry)) package)))
             (should (equal actual expected))))))))
 
-(ert-deftest eglotx-presets-web-fixtures-isolate-optional-backends ()
+(ert-deftest eglotx-presets-react-fixtures-isolate-optional-backends ()
   (eglotx-presets-test--with-directory (global-bin)
     (dolist (name '("typescript-language-server"
                     "vscode-eslint-language-server"
                     "biome"
-                    "tailwindcss-language-server"))
+                    "tailwindcss-language-server"
+                    "ngserver"))
       (eglotx-presets-test--global-server global-bin name))
     (dolist (case '(("react_ts_tailwind_eslint"
                      . ("typescript" "eslint" "tailwindcss"))
@@ -181,12 +182,65 @@ Return a cons of its executable and package directory."
              (default-directory (expand-file-name "src/" root))
              (exec-path (list global-bin))
              (contact
-              (eglotx-presets-typescript-contact
+              (eglotx-presets-javascript-typescript-react-contact
                nil (eglotx-presets-test--project root))))
         (should
          (equal (mapcar (lambda (backend) (plist-get backend :name))
                         (eglotx-presets-test--backend-specs contact))
                 (cdr case)))))))
+
+(ert-deftest eglotx-presets-angular-fixture-selects-framework-stack ()
+  (eglotx-presets-test--with-directory (global-bin)
+    (let ((typescript
+           (eglotx-presets-test--global-server
+            global-bin "typescript-language-server"))
+          (ngserver
+           (eglotx-presets-test--global-server global-bin "ngserver"))
+          (root (eglotx-presets-test--project-fixture "angular_ts")))
+      (let* ((default-directory (expand-file-name "src/app/" root))
+             (exec-path (list global-bin))
+             (eglotx-presets-prefer-project-local-servers nil)
+             (contact
+              (eglotx-presets-javascript-typescript-react-contact
+               nil (eglotx-presets-test--project root)))
+             (backends (eglotx-presets-test--backend-specs contact))
+             (typescript-backend
+              (eglotx-presets-test--backend contact "typescript"))
+             (angular (eglotx-presets-test--backend contact "angular")))
+        (should
+         (equal (mapcar (lambda (backend) (plist-get backend :name)) backends)
+                '("typescript" "angular")))
+        (should (equal (plist-get typescript-backend :command)
+                       (list typescript "--stdio")))
+        (should (= (plist-get typescript-backend :priority) 100))
+        (should (plist-get typescript-backend :required))
+        (should-not (plist-get typescript-backend :languages))
+        (should
+         (equal (plist-get angular :command)
+                (list ngserver "--stdio"
+                      "--tsProbeLocations" root
+                      "--ngProbeLocations" root)))
+        (should (= (plist-get angular :priority) 120))
+        (should (plist-member angular :required))
+        (should-not (plist-get angular :required))
+        (should (equal (plist-get angular :languages) '("typescript")))
+        (should (equal (plist-get angular :only)
+                       eglotx-presets--angular-only))))))
+
+(ert-deftest eglotx-presets-typescript-contact-omits-angular-for-fixture ()
+  (eglotx-presets-test--with-directory (global-bin)
+    (let ((typescript
+           (eglotx-presets-test--global-server
+            global-bin "typescript-language-server"))
+          (root (eglotx-presets-test--project-fixture "angular_ts")))
+      (eglotx-presets-test--global-server global-bin "ngserver")
+      (let ((default-directory (expand-file-name "src/app/" root))
+            (exec-path (list global-bin))
+            (eglotx-presets-prefer-project-local-servers nil))
+        (should
+         (equal (eglotx-presets-typescript-contact
+                 nil (eglotx-presets-test--project root))
+                (list typescript "--stdio")))))))
 
 (ert-deftest eglotx-presets-vue-builds-current-hybrid-stack-local-first ()
   (eglotx-presets-test--with-directory (root)
