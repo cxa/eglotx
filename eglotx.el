@@ -3,6 +3,7 @@
 ;; Copyright (C) 2026 CHEN Xian'an
 
 ;; Author: CHEN Xian'an <xianan.chen@gmail.com>
+;; Assisted-by: Codex:GPT-5
 ;; Maintainer: CHEN Xian'an <xianan.chen@gmail.com>
 ;; Version: 0.1.3
 ;; Package-Requires: ((emacs "29.1") (eglot "1.24") (jsonrpc "1.0.29"))
@@ -1513,7 +1514,7 @@ this constructor without matching buffers owned by similarly named siblings."
 (defun eglotx--cleanup-failed-backend (server backend)
   "Withdraw BACKEND registrations and release its state from SERVER."
   (let* ((cursor-retired-p
-          (eglotx--invalidate-backend-diagnostic-cursors server backend))
+          (eglotx--invalidate-backend-diagnostic-cursors-p server backend))
          (retirement
          (eglotx--backend-retirement-create
            :backend backend
@@ -3481,9 +3482,9 @@ form so equivalent URI spellings share an identity."
     (when token
       (eglotx--drop-diagnostic-cursor server token))))
 
-(defun eglotx--invalidate-backend-diagnostic-cursors (server backend)
+(defun eglotx--invalidate-backend-diagnostic-cursors-p (server backend)
   "Invalidate bounded SERVER cursors containing a value owned by BACKEND.
-Return non-nil when at least one cursor was retired."
+Return t when at least one cursor was retired."
   (let (tokens)
     ;; The facade cursor ledger has a hard 4096-entry cap.  Scanning it once on
     ;; an optional-process crash avoids retaining an incremental handle whose
@@ -3499,7 +3500,7 @@ Return non-nil when at least one cursor was retired."
      (eglotx--diagnostic-cursors server))
     (dolist (token tokens)
       (eglotx--drop-diagnostic-cursor server token))
-    (not (null tokens))))
+    (and tokens t)))
 
 (defun eglotx--remember-diagnostic-cursor (server uri values)
   "Store backend pull-diagnostic cursor VALUES for SERVER URI.

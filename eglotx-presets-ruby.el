@@ -2,6 +2,9 @@
 
 ;; Copyright (C) 2026 CHEN Xian'an
 
+;; Author: CHEN Xian'an <xianan.chen@gmail.com>
+;; Assisted-by: Codex:GPT-5
+
 ;; This file is not part of GNU Emacs.
 
 ;; This program is free software: you can redistribute it and/or modify

@@ -2,6 +2,9 @@
 
 ;; Copyright (C) 2026 CHEN Xian'an
 
+;; Author: CHEN Xian'an <xianan.chen@gmail.com>
+;; Assisted-by: Codex:GPT-5
+
 ;; This file is not part of GNU Emacs.
 
 ;; This program is free software: you can redistribute it and/or modify
@@ -25,8 +28,6 @@
 (require 'subr-x)
 (require 'eglotx)
 (require 'eglotx-eglot)
-
-(declare-function eglot-path-to-uri "eglot" (path))
 
 (defvar eglot-lsp-context)
 
@@ -284,7 +285,7 @@ string is preserved.  It does not evaluate the configuration."
     (let (in-string escaped)
       ;; Remove comments before looking for trailing commas.  Replacing each
       ;; comment with whitespace prevents adjacent tokens from being joined.
-      (while (< (point) (point-max))
+      (while (not (eobp))
         (let ((character (char-after))
               (next (char-after (1+ (point)))))
           (cond
@@ -316,7 +317,7 @@ string is preserved.  It does not evaluate the configuration."
       ;; closing array or object delimiter outside a string.
       (goto-char (point-min))
       (setq in-string nil escaped nil)
-      (while (< (point) (point-max))
+      (while (not (eobp))
         (let ((character (char-after)))
           (cond
            (in-string
