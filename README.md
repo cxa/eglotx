@@ -23,6 +23,19 @@ through a shell.
 
 ## Installation
 
+### MELPA
+
+Eglotx is available from [MELPA](https://melpa.org/#/eglotx).  With the archive
+configured, install it and enable the preset catalog with `use-package`:
+
+```elisp
+(use-package eglotx
+  :ensure t
+  :demand t
+  :config
+  (eglotx-presets-mode 1))
+```
+
 ### `use-package` with `:vc`
 
 Install the current stable release with `package-vc` and enable the preset
