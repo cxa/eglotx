@@ -1120,7 +1120,7 @@ bundled contact functions."
    :codeAction
    (list :disableRuleComment (list :enable t :location "separateLine")
          :showDocumentation (list :enable t))
-   :codeActionOnSave (list :enable t :mode "all" :rules [])
+   :codeActionOnSave (list :enable t :mode "all")
    :format :json-false
    :quiet :json-false
    :onIgnoredFiles "off"
@@ -1163,7 +1163,23 @@ bundled contact functions."
          (typescript-resolution
           (eglotx-presets--node-resolution
            context "typescript-language-server" bin-directories))
-         (typescript (cdr typescript-resolution))
+         (typescript
+          (if-let* ((executable (cdr typescript-resolution)))
+              (list executable "--stdio")
+            ;; A pinned local TLS command can still use discovered add-ons.
+            ;; Other contacts retain their ordinary whole-session fallback.
+            (let* ((eglot-server-programs eglotx-presets--fallback-programs)
+                   (contact (eglotx-presets--contact-from-lookup
+                             (eglot--lookup-mode major-mode))))
+              (when (and (not (eglotx-presets--context-remote-p context))
+                         (consp contact) (proper-list-p contact)
+                         (cl-every #'stringp contact)
+                         (file-name-absolute-p (car contact))
+                         (not (file-remote-p (car contact)))
+                         (equal (file-name-base (car contact))
+                                "typescript-language-server")
+                         (file-executable-p (car contact)))
+                contact))))
          (eslint-enabled
           (not (eglotx-presets--add-on-disabled-p 'eslint)))
          (tailwind-enabled
@@ -1236,7 +1252,7 @@ bundled contact functions."
          backends)
     (when typescript
       (push (list :name "typescript"
-                  :command (list typescript "--stdio")
+                  :command typescript
                   :priority 100
                   :required t)
             backends)

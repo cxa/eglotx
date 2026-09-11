@@ -5,7 +5,7 @@
 ;; Author: CHEN Xian'an <xianan.chen@gmail.com>
 ;; Assisted-by: Codex:GPT-5
 ;; Maintainer: CHEN Xian'an <xianan.chen@gmail.com>
-;; Version: 0.1.3
+;; Version: 0.1.4
 ;; Package-Requires: ((emacs "29.1") (eglot "1.24") (jsonrpc "1.0.29"))
 ;; Keywords: tools, languages
 ;; URL: https://github.com/cxa/eglotx

@@ -6,6 +6,27 @@ All notable changes to Eglotx are documented in this file. The project uses
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-09-11
+
+### Added
+
+- A nested TypeScript/ESLint fixture and `make test-nested-eslint-e2e` covering
+  real Git/project.el root discovery, an absolute TypeScript server path,
+  preset contact precedence, diagnostics, and fix-all edits.
+- MELPA installation instructions and TypeScript/ESLint setup and
+  troubleshooting guidance.
+
+### Fixed
+
+- Keep discovered JavaScript/TypeScript add-ons when TLS is available only
+  through an earlier absolute-path Eglot contact, such as an nvm installation
+  outside Emacs's `exec-path`.  Preserve the configured command arguments.
+- Allow ESLint fix-all actions to apply the project's configured rules instead
+  of disabling every rule with an empty default `codeActionOnSave.rules` list.
+
+These fixes address [#4](https://github.com/cxa/eglotx/issues/4), following
+[discussion #3](https://github.com/cxa/eglotx/discussions/3#discussioncomment-18384243).
+
 ## [0.1.3] - 2026-07-23
 
 ### Added
@@ -139,7 +160,8 @@ All notable changes to Eglotx are documented in this file. The project uses
   Tailwind-to-Corfu E2E targets.
 - CI checks on Emacs 29.4, 30.2, and the current snapshot build.
 
-[Unreleased]: https://github.com/cxa/eglotx/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/cxa/eglotx/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/cxa/eglotx/releases/tag/v0.1.4
 [0.1.3]: https://github.com/cxa/eglotx/releases/tag/v0.1.3
 [0.1.2]: https://github.com/cxa/eglotx/releases/tag/v0.1.2
 [0.1.1]: https://github.com/cxa/eglotx/releases/tag/v0.1.1

@@ -12,6 +12,8 @@
 /test/projects/*/yarn.lock
 /test/projects/*/bun.lock
 /test/projects/*/bun.lockb
+/test/projects/nested_ts_eslint/frontend/node_modules/
+/test/projects/nested_ts_eslint/frontend/package-lock.json
 *~
 \#*\#
 .\#*

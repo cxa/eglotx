@@ -327,6 +327,17 @@
                              (flymake-diagnostic-text optional-diagnostic))))
               (error "ESLint did not run no-var: %s"
                      (flymake-diagnostic-text optional-diagnostic)))
+            (when (equal optional "eslint")
+              (let ((actions (eglot-code-actions
+                              (point-min) (point-max)
+                              "source.fixAll.eslint")))
+                (unless actions
+                  (error "ESLint did not offer a fix-all action"))
+                (eglot-execute server (car actions)))
+              (when (save-excursion
+                      (goto-char (point-min))
+                      (search-forward "var eglotxPresetProbe" nil t))
+                (error "ESLint fix-all did not fix the no-var violation")))
             (prin1
              (list :project project-name
                    :backends

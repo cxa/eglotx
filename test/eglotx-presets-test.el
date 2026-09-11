@@ -1455,6 +1455,100 @@ Return a cons of its executable and package directory."
         (should-not eglotx-presets--fallback-programs)
         (should-not eglotx-presets--fallback-resolver)))))
 
+(ert-deftest eglotx-presets-typescript-keeps-add-ons-with-absolute-contact ()
+  (require 'typescript-ts-mode)
+  (eglotx-presets-test--with-directory (root)
+    (eglotx-presets-test--with-directory (nvm-bin)
+      (eglotx-presets-test--with-mode-state
+        (let* ((app (expand-file-name "app/" root))
+               (source (eglotx-presets-test--write-file
+                        app "src/main.ts" "const value: string = 1;\n"))
+               (typescript (eglotx-presets-test--global-server
+                            nvm-bin "typescript-language-server"))
+               (command (list typescript "--stdio" "--log-level" "4"))
+               (eslint (eglotx-presets-test--local-server
+                        app "vscode-eslint-language-server"))
+               (eglot-server-programs
+                `((typescript-ts-base-mode . ,command)))
+               (eglotx-presets--installed-entries nil)
+               (eglotx-presets--fallback-programs nil)
+               (eglotx-presets--fallback-resolver nil)
+               (project-find-functions
+                (list (lambda (_directory) (cons 'transient app))))
+               (exec-path nil))
+          (eglotx-presets-test--write-file
+           app "package.json" "{\"devDependencies\":{\"eslint\":\"10\"}}")
+          (unwind-protect
+              (with-temp-buffer
+                (setq buffer-file-name source
+                      default-directory (file-name-directory source))
+                (eglotx-presets-mode 1)
+                (dolist (project-root (list root app))
+                  (let ((project-find-functions
+                         (list (lambda (_directory)
+                                 (cons 'transient project-root)))))
+                    (dolist (mode '(typescript-ts-mode tsx-ts-mode))
+                      (setq major-mode mode)
+                      (let* ((guess (eglot--guess-contact))
+                             (contact (cons (nth 2 guess) (nth 3 guess))))
+                        (should (eq (car contact) 'eglotx-server))
+                        (should
+                         (equal (mapcar (lambda (backend)
+                                          (plist-get backend :name))
+                                        (eglotx-presets-test--backend-specs
+                                         contact))
+                                '("typescript" "eslint")))
+                        (should
+                         (equal (plist-get (eglotx-presets-test--backend
+                                            contact "typescript") :command)
+                                command))
+                        (should
+                         (equal (plist-get (eglotx-presets-test--backend
+                                            contact "eslint") :command)
+                                (list eslint "--stdio")))))))
+                (delete-file eslint)
+                (should (equal (nth 3 (eglot--guess-contact)) command))
+                (let ((local (eglotx-presets-test--local-server
+                              app "typescript-language-server")))
+                  (should (equal (nth 3 (eglot--guess-contact))
+                                 (list local "--stdio")))))
+            (eglotx-presets-mode -1)))))))
+
+(ert-deftest eglotx-presets-typescript-preserves-other-fallback-contacts ()
+  (eglotx-presets-test--with-directory (root)
+    (let* ((typescript (eglotx-presets-test--global-server
+                        (expand-file-name "nvm/bin/" root)
+                        "typescript-language-server"))
+           (default-directory root)
+           (major-mode 'typescript-mode)
+           (exec-path nil)
+           (eglotx-presets--fallback-resolver
+            #'eglotx-presets--fallback-contact)
+           (contacts
+            (list '("custom-typescript-server" "--stdio")
+                  '("localhost" 2089)
+                  (list 'eglot-lsp-server typescript "--stdio")
+                  (list typescript "--stdio" :initializationOptions '(:x t))
+                  (list (expand-file-name
+                         "missing/typescript-language-server" root)
+                        "--stdio"))))
+      (eglotx-presets-test--local-server root "vscode-eslint-language-server")
+      (dolist (contact contacts)
+        (dolist (functional '(nil t))
+          (let* ((calls 0)
+                 (fallback (if functional
+                               (lambda (_interactive _project)
+                                 (cl-incf calls)
+                                 contact)
+                             contact))
+                 (eglotx-presets--fallback-programs
+                  `((typescript-mode . ,fallback))))
+            (should
+             (equal (eglotx-presets-javascript-typescript-contact
+                     nil (eglotx-presets-test--project root))
+                    contact))
+            (should (= calls (if functional 1 0)))))))))
+
 (ert-deftest eglotx-presets-mode-calls-earlier-functional-contact ()
   (eglotx-presets-test--with-directory (root)
     (eglotx-presets-test--with-mode-state

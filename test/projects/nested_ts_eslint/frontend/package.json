@@ -1,0 +1,14 @@
+{
+  "name": "eglotx-nested-ts-eslint-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint src"
+  },
+  "devDependencies": {
+    "eslint": "^10.0.0",
+    "typescript": "^6.0.0",
+    "typescript-language-server": "^5.0.0",
+    "vscode-langservers-extracted": "^4.10.0"
+  }
+}

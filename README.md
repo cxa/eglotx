@@ -227,6 +227,13 @@ Run `M-x eglotx-status` from a managed buffer to inspect the facade and its
 children. The status view is read-only: displaying it does not send protocol
 messages, restart processes, or mutate routing state.
 
+`Current Eglot server is not managed by Eglotx` means the current session is
+not a multiplexer, including a preset that resolved to only one server.  For
+TypeScript plus ESLint, install `vscode-langservers-extracted` as well as the
+project's `eslint` package: the ESLint CLI alone is not a language server.
+Configure custom Eglot contacts before enabling presets; a matching entry
+prepended later bypasses them.  See the [TypeScript/ESLint setup](docs/presets.md#javascript-jsx-typescript-tsx-eslint-tailwind-and-biome).
+
 For a manual contact, verify PATH fallback with `executable-find`, then inspect
 `:when`, `:only`, and `:languages`.  For a preset, also check the ecosystem's
 project-local executable directory and the recipe's intent signal in

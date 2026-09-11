@@ -93,6 +93,14 @@ called with their normal supported one- or two-argument arity.  Disabling the
 mode removes the owned entries, leaves the preceding list visible again, and
 clears the fallback resolver and snapshot.
 
+The JavaScript/TypeScript recipe can also reuse an earlier static argv contact
+whose executable is an absolute local path to `typescript-language-server`
+(including `.cmd`/`.exe` launchers).  When project-local and PATH discovery
+cannot find TLS, that command and its arguments become the primary, so
+discovered add-ons still join.  Functional contacts, custom server classes,
+contacts with initialization options, other executables, and remote sessions
+retain the whole-session fallback behavior above.
+
 ### Advanced manual mode mappings
 
 Most users should enable the global mode and leave the installed catalog
@@ -393,6 +401,30 @@ rather than separate presets, so they get the same intent-gated ESLint,
 Tailwind CSS, Biome, and GraphQL add-ons.  Each add-on joins independently when
 both executable resolution and its own intent gate succeed.
 
+ESLint needs both the project's `eslint` package and the separate
+`vscode-eslint-language-server` executable, supplied by
+`vscode-langservers-extracted`.  Installing only `eslint` does not install an
+LSP server.  For a project-local setup, run:
+
+```sh
+npm install --save-dev typescript typescript-language-server eslint vscode-langservers-extracted
+```
+
+Configure ESLint for the project, then enable `eglotx-presets-mode` and start
+Eglot.  With nvm or another version manager, ensure Emacs can find `node` and
+the servers, or configure an absolute TLS contact **before** enabling presets:
+
+```elisp
+(add-to-list 'eglot-server-programs
+             '(typescript-ts-base-mode
+               . ("/path/to/nvm/bin/typescript-language-server" "--stdio")))
+(eglotx-presets-mode 1)
+```
+
+A matching contact prepended after enabling presets takes precedence and
+bypasses their discovery.  Restart with `eglot-shutdown` followed by `eglot`
+after changing the setup; `eglot-reconnect` reuses the old resolved contact.
+
 ESLint recognizes `eslintConfig`, dependencies named `eslint`, `eslint-*`,
 `@eslint/*`, or `@typescript-eslint/*`, a project-local server, legacy
 `.eslintrc`/`.eslintignore` forms, and structurally matched script config
@@ -405,6 +437,8 @@ The preset supplies vscode-eslint settings that enable validation and infer a
 working directory per document.  It preserves user settings and does not
 force the deprecated `experimental.useFlatConfig` switch, allowing the
 installed ESLint generation to select its supported flat or legacy behavior.
+Fix-all actions use the project's configured rules; the preset leaves
+`codeActionOnSave.rules` unset because an empty list disables all fixes.
 Invalid ESLint configuration can still suppress rule diagnostics and should
 be reproducible with the project's ESLint CLI.
 
@@ -642,7 +676,8 @@ are opt-in:
 
 | Target | Installed toolchain exercised |
 | --- | --- |
-| `make test-eslint-e2e` | Three resolved backends, React TSX TypeScript/ESLint diagnostics, Tailwind completion/resolve, and TypeScript formatter ownership |
+| `make test-eslint-e2e` | Three resolved backends, React TSX TypeScript/ESLint diagnostics, ESLint fix-all edits, Tailwind completion/resolve, and TypeScript formatter ownership |
+| `make test-nested-eslint-e2e` | Real Git/project.el roots above and at a nested package, absolute-path TLS outside PATH, native TypeScript mode/contact selection, both diagnostics, and ESLint fix-all edits |
 | `make test-biome-e2e` | Three resolved backends, React TSX TypeScript/Biome diagnostics, Tailwind completion/resolve, and Biome formatter ownership |
 | `make test-angular-e2e` | Project-local TypeScript and Angular language servers, Angular probe arguments, and TypeScript plus inline-template diagnostics |
 | `make test-vue-e2e` | Project-local VLS, TLS, ESLint, and Tailwind; the VLS/TLS bridge; TypeScript and ESLint diagnostics |
