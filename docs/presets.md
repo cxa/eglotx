@@ -401,6 +401,12 @@ rather than separate presets, so they get the same intent-gated ESLint,
 Tailwind CSS, Biome, and GraphQL add-ons.  Each add-on joins independently when
 both executable resolution and its own intent gate succeed.
 
+The recipe also passes the nearest project TypeScript SDK as
+`initializationOptions.tsserver.path`.  This lets a separately installed
+language server use `frontend/node_modules/typescript/lib/` even when Eglot's
+project root is the parent Git repository.  Without a project SDK, the server
+retains its own SDK discovery; the preset does not install TypeScript.
+
 ESLint needs both the project's `eslint` package and the separate
 `vscode-eslint-language-server` executable, supplied by
 `vscode-langservers-extracted`.  Installing only `eslint` does not install an
@@ -409,6 +415,19 @@ LSP server.  For a project-local setup, run:
 ```sh
 npm install --save-dev typescript typescript-language-server eslint vscode-langservers-extracted
 ```
+
+To leave the project's `package.json` and lockfile unchanged, install the
+editor tools globally in the active Node/nvm environment instead:
+
+```sh
+npm install --global typescript typescript-language-server vscode-langservers-extracted
+```
+
+The project still needs its existing ESLint dependency and configuration.
+`typescript-language-server` and the `typescript` SDK are separate packages:
+an absolute path to the former does not supply the latter.  If initialization
+reports `Could not find a valid TypeScript installation`, verify that the SDK
+is installed in the project or alongside the selected global language server.
 
 Configure ESLint for the project, then enable `eglotx-presets-mode` and start
 Eglot.  With nvm or another version manager, ensure Emacs can find `node` and
@@ -677,7 +696,7 @@ are opt-in:
 | Target | Installed toolchain exercised |
 | --- | --- |
 | `make test-eslint-e2e` | Three resolved backends, React TSX TypeScript/ESLint diagnostics, ESLint fix-all edits, Tailwind completion/resolve, and TypeScript formatter ownership |
-| `make test-nested-eslint-e2e` | Real Git/project.el roots above and at a nested package, absolute-path TLS outside PATH, native TypeScript mode/contact selection, both diagnostics, and ESLint fix-all edits |
+| `make test-nested-eslint-e2e` | Real Git/project.el roots above and at a nested package, separately installed TLS outside PATH, project/global/explicit-path SDKs with host NODE_PATH cleared, native TypeScript mode/contact selection, both diagnostics, and ESLint fix-all edits |
 | `make test-biome-e2e` | Three resolved backends, React TSX TypeScript/Biome diagnostics, Tailwind completion/resolve, and Biome formatter ownership |
 | `make test-angular-e2e` | Project-local TypeScript and Angular language servers, Angular probe arguments, and TypeScript plus inline-template diagnostics |
 | `make test-vue-e2e` | Project-local VLS, TLS, ESLint, and Tailwind; the VLS/TLS bridge; TypeScript and ESLint diagnostics |

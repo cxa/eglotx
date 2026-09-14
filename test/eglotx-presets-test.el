@@ -239,8 +239,8 @@ Return a cons of its executable and package directory."
             (eglotx-presets-prefer-project-local-servers nil)
             (eglotx-presets-disabled-add-ons '(angular)))
         (should
-         (equal (eglotx-presets-javascript-typescript-contact
-                 nil (eglotx-presets-test--project root))
+         (equal (seq-take (eglotx-presets-javascript-typescript-contact
+                          nil (eglotx-presets-test--project root)) 2)
                 (list typescript "--stdio")))))))
 
 (ert-deftest eglotx-presets-vue-builds-current-hybrid-stack-local-first ()
@@ -1466,6 +1466,8 @@ Return a cons of its executable and package directory."
                (typescript (eglotx-presets-test--global-server
                             nvm-bin "typescript-language-server"))
                (command (list typescript "--stdio" "--log-level" "4"))
+               (tsdk (expand-file-name "node_modules/typescript/lib/" app))
+               (options (list :tsserver (list :path tsdk)))
                (eslint (eglotx-presets-test--local-server
                         app "vscode-eslint-language-server"))
                (eglot-server-programs
@@ -1478,6 +1480,9 @@ Return a cons of its executable and package directory."
                (exec-path nil))
           (eglotx-presets-test--write-file
            app "package.json" "{\"devDependencies\":{\"eslint\":\"10\"}}")
+          (dolist (directory (list root app))
+            (eglotx-presets-test--write-file
+             directory "node_modules/typescript/lib/typescript.js" ""))
           (unwind-protect
               (with-temp-buffer
                 (setq buffer-file-name source
@@ -1504,14 +1509,22 @@ Return a cons of its executable and package directory."
                                 command))
                         (should
                          (equal (plist-get (eglotx-presets-test--backend
+                                            contact "typescript")
+                                           :initialization-options)
+                                options))
+                        (should
+                         (equal (plist-get (eglotx-presets-test--backend
                                             contact "eslint") :command)
                                 (list eslint "--stdio")))))))
                 (delete-file eslint)
-                (should (equal (nth 3 (eglot--guess-contact)) command))
+                (should (equal (nth 3 (eglot--guess-contact))
+                               (append command
+                                       (list :initializationOptions options))))
                 (let ((local (eglotx-presets-test--local-server
                               app "typescript-language-server")))
                   (should (equal (nth 3 (eglot--guess-contact))
-                                 (list local "--stdio")))))
+                                 (list local "--stdio"
+                                       :initializationOptions options)))))
             (eglotx-presets-mode -1)))))))
 
 (ert-deftest eglotx-presets-typescript-preserves-other-fallback-contacts ()

@@ -6,6 +6,21 @@ All notable changes to Eglotx are documented in this file. The project uses
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-09-14
+
+### Fixed
+
+- Pass the nearest project TypeScript SDK to the JavaScript/TypeScript
+  primary, including absolute nvm contacts and the native single-server path.
+  A separately installed language server can now initialize when the SDK is
+  in a nested package below Eglot's Git project root.  The real-server test
+  now isolates the server package, clears host `NODE_PATH`, and asserts that
+  TLS cannot be found on PATH or started without the absolute-path contact.
+  It covers project SDKs, SDKs installed alongside TLS, and explicitly
+  configured SDK paths.  These checks prevent an unrelated SDK from hiding
+  this failure from
+  [discussion #3](https://github.com/cxa/eglotx/discussions/3#discussioncomment-18427721).
+
 ## [0.1.4] - 2026-09-11
 
 ### Added
@@ -160,7 +175,8 @@ These fixes address [#4](https://github.com/cxa/eglotx/issues/4), following
   Tailwind-to-Corfu E2E targets.
 - CI checks on Emacs 29.4, 30.2, and the current snapshot build.
 
-[Unreleased]: https://github.com/cxa/eglotx/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/cxa/eglotx/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/cxa/eglotx/releases/tag/v0.1.5
 [0.1.4]: https://github.com/cxa/eglotx/releases/tag/v0.1.4
 [0.1.3]: https://github.com/cxa/eglotx/releases/tag/v0.1.3
 [0.1.2]: https://github.com/cxa/eglotx/releases/tag/v0.1.2

@@ -1256,6 +1256,9 @@ bundled contact functions."
                   :priority 100
                   :required t)
             backends)
+      (when-let* ((tsdk (eglotx-presets--typescript-sdk-directory context)))
+        (setf (plist-get (car backends) :initialization-options)
+              (list :tsserver (list :path tsdk))))
       (when biome
         (push (list :name "biome"
                     :command (list biome "lsp-proxy")
