@@ -177,7 +177,7 @@ event loop."
 (defconst eglotx--file-watch-retry-base-delay 0.1
   "Initial seconds before retrying Eglot file-watch reconciliation.")
 
-(defconst eglotx--file-watch-retry-max-delay 5.0
+(defconst eglotx--file-watch-retry-max-delay 60.0
   "Maximum seconds between Eglot file-watch reconciliation retries.")
 
 (defcustom eglotx-document-selector-limit 256
@@ -877,10 +877,19 @@ cannot carry a connection-local `:id'.")
    (watch-rebuild-queued-p
     :initform nil
     :accessor eglotx--watch-rebuild-queued-p)
+   (watch-desired-state
+    :initform nil
+    :accessor eglotx--watch-desired-state)
+   (watch-rebuild-target
+    :initform nil
+    :accessor eglotx--watch-rebuild-target)
+   (watch-rebuild-warning
+    :initform nil
+    :accessor eglotx--watch-rebuild-warning)
    (watch-rebuild-retry-timer
     :initform nil
-   :accessor eglotx--watch-rebuild-retry-timer)
-  (watch-rebuild-retry-delay
+    :accessor eglotx--watch-rebuild-retry-timer)
+   (watch-rebuild-retry-delay
     :initform 0.1
     :accessor eglotx--watch-rebuild-retry-delay)
    (semantic-refresh-pending-p
@@ -4587,13 +4596,20 @@ When STAGED-BACKEND is non-nil, use STAGED-REGISTRATIONS for that backend."
           selectors)))
 
 (defun eglotx--rebuild-file-watches (server)
-  "Reconcile SERVER's logical watchers with one physical Eglot watcher."
-  (pcase-let* ((`(,watchers . ,selectors)
-                (eglotx--collect-file-watch-state server))
-               (old (eglotx--watch-registration-watchers server)))
-    (if (and (eglotx--watch-registration-active-p server)
-             (equal watchers old))
-        (setf (eglotx--watch-selectors server) selectors)
+  "Reconcile SERVER's cached logical state with one physical Eglot watcher."
+  (let ((watchers (car (eglotx--watch-desired-state server)))
+        (old (eglotx--watch-registration-watchers server)))
+    (unless (and (eglotx--watch-registration-active-p server)
+                 (equal watchers old))
+      ;; Check before withdrawing the old registration.  A missing project
+      ;; needs only a sparse directory probe, not enumeration and installation.
+      (when (and (> (length watchers) 0) (eglot--project server))
+        (let ((root (project-root (eglot--project server))))
+          (unless (file-directory-p root)
+            (setf (eglotx--watch-rebuild-retry-delay server)
+                  eglotx--file-watch-retry-max-delay
+                  (eglotx--watch-registration-watchers server) nil)
+            (signal 'file-missing (list "Project directory unavailable" root)))))
       (when (eglotx--watch-registration-active-p server)
         (eglot-unregister-capability
          server 'workspace/didChangeWatchedFiles
@@ -4610,50 +4626,96 @@ When STAGED-BACKEND is non-nil, use STAGED-REGISTRATIONS for that backend."
            (eglotx--watch-registration-id server) :watchers watchers))
         (setf (eglotx--watch-registration-active-p server) t
               (eglotx--watch-registration-watchers server)
-              (copy-tree watchers)))
-      (setf (eglotx--watch-selectors server) selectors))))
+              (copy-tree watchers))))))
 
 (defun eglotx--run-file-watch-rebuild (server)
   "Reconcile SERVER file watches and retry a failed upstream projection."
   (setf (eglotx--watch-rebuild-queued-p server) nil)
   (unless (memq (eglotx--state server) '(stopping dead failed))
     (condition-case err
-        (progn
-          (eglotx--rebuild-file-watches server)
-          (setf (eglotx--watch-rebuild-retry-delay server)
-                eglotx--file-watch-retry-base-delay))
+        (let* ((state (or (eglotx--watch-desired-state server)
+                          (setf (eglotx--watch-desired-state server)
+                                (eglotx--collect-file-watch-state server))))
+               (watchers (car state))
+               (changed-p
+                (not (equal watchers (eglotx--watch-rebuild-target server)))))
+          (setf (eglotx--watch-selectors server) (cdr state))
+          ;; Backend retirement may need to refresh ownership while the same
+          ;; physical target is still waiting.  Keep its existing retry timer.
+          (unless (and (not changed-p)
+                       (eglotx--watch-rebuild-retry-timer server))
+            (when-let* ((timer (eglotx--watch-rebuild-retry-timer server)))
+              (cancel-timer timer)
+              (setf (eglotx--watch-rebuild-retry-timer server) nil))
+            (when changed-p
+              (setf (eglotx--watch-rebuild-retry-delay server)
+                    eglotx--file-watch-retry-base-delay
+                    (eglotx--watch-rebuild-warning server) nil
+                    (eglotx--watch-rebuild-target server) watchers))
+            (eglotx--rebuild-file-watches server)
+            (setf (eglotx--watch-rebuild-retry-delay server)
+                  eglotx--file-watch-retry-base-delay
+                  (eglotx--watch-rebuild-warning server) nil)))
       (error
-       (let ((delay (eglotx--watch-rebuild-retry-delay server)))
+       (let* ((delay (eglotx--watch-rebuild-retry-delay server))
+              (message (error-message-string err))
+              (warning (eglotx--watch-rebuild-warning server)))
+         (when-let* ((timer (eglotx--watch-rebuild-retry-timer server)))
+           (cancel-timer timer))
          (setf (eglotx--watch-rebuild-retry-delay server)
                (min eglotx--file-watch-retry-max-delay (* 2 delay))
                (eglotx--watch-rebuild-retry-timer server)
                (run-with-timer
                 delay nil #'eglotx--retry-file-watch-rebuild server))
-         (display-warning
-          'eglotx
-          (format "File-watch reconciliation failed; retrying in %.2fs: %s"
-                  delay (error-message-string err))
-          :warning))))))
+         ;; Report a new error and once more when backoff reaches its cap.
+         (when (or (not (equal message (car warning)))
+                   (and (= delay eglotx--file-watch-retry-max-delay)
+                        (< (cdr warning) delay)))
+           (setf (eglotx--watch-rebuild-warning server) (cons message delay))
+           (display-warning
+            'eglotx
+            (format "File-watch reconciliation failed; retrying in %.2fs: %s"
+                    delay message)
+            :warning)))))))
 
 (defun eglotx--retry-file-watch-rebuild (server)
   "Requeue a failed file-watch reconciliation for SERVER."
   (setf (eglotx--watch-rebuild-retry-timer server) nil)
   (eglotx--schedule-file-watch-rebuild server t))
 
-(defun eglotx--schedule-file-watch-rebuild (server &optional retry-p)
+(defun eglotx--schedule-file-watch-rebuild
+    (server &optional retry-p desired-state)
   "Schedule one coalesced file-watch reconciliation for SERVER.
-RETRY-P preserves the current retry delay; new desired state retries now."
+RETRY-P reuses compiled state; DESIRED-STATE is an already validated update.
+Ownership changes alone preserve the physical target's retry backoff."
   (unless (memq (eglotx--state server) '(stopping dead failed))
     (unless retry-p
-      (when-let* ((timer (eglotx--watch-rebuild-retry-timer server))
-                  ((timerp timer)))
-        (cancel-timer timer))
-      (setf (eglotx--watch-rebuild-retry-timer server) nil
-            (eglotx--watch-rebuild-retry-delay server)
-            eglotx--file-watch-retry-base-delay))
-    (unless (eglotx--watch-rebuild-queued-p server)
+      (setf (eglotx--watch-desired-state server) desired-state)
+      (when desired-state
+        (setf (eglotx--watch-selectors server) (cdr desired-state))))
+    (unless (or (eglotx--watch-rebuild-queued-p server)
+                (and desired-state
+                     (equal (car desired-state)
+                            (eglotx--watch-rebuild-target server))
+                     (eglotx--watch-rebuild-retry-timer server)))
       (setf (eglotx--watch-rebuild-queued-p server) t)
       (eglotx--enqueue-work server #'eglotx--run-file-watch-rebuild server))))
+
+;;;###autoload
+(defun eglotx-retry-file-watches (&optional server)
+  "Retry file-watch registration now for SERVER, ignoring its backoff.
+Interactively, use the current Eglotx server."
+  (interactive)
+  (setq server (or server (eglot-current-server)))
+  (unless (and server (object-of-class-p server 'eglotx-server))
+    (user-error "No current Eglotx server"))
+  (when-let* ((timer (eglotx--watch-rebuild-retry-timer server)))
+    (cancel-timer timer))
+  (setf (eglotx--watch-rebuild-retry-timer server) nil
+        (eglotx--watch-rebuild-retry-delay server)
+        eglotx--file-watch-retry-base-delay
+        (eglotx--watch-rebuild-warning server) nil)
+  (eglotx--schedule-file-watch-rebuild server t))
 
 (defun eglotx--remove-file-watches (server)
   "Remove SERVER's physical Eglot watcher registration."
@@ -4666,6 +4728,9 @@ RETRY-P preserves the current retry delay; new desired state retries now."
      (eglotx--watch-registration-id server)))
   (setf (eglotx--watch-registration-active-p server) nil
         (eglotx--watch-registration-watchers server) nil
+        (eglotx--watch-desired-state server) nil
+        (eglotx--watch-rebuild-target server) nil
+        (eglotx--watch-rebuild-warning server) nil
         (eglotx--watch-rebuild-queued-p server) nil
         (eglotx--watch-rebuild-retry-timer server) nil
         (eglotx--watch-rebuild-retry-delay server)
@@ -4775,7 +4840,7 @@ other method instead of maintaining state the consuming client cannot use."
            (eglotx--collect-file-watch-state server backend staged)))
       (setf (eglotx--backend-registration-methods backend) staged
             (eglotx--watch-selectors server) (cdr state))
-      (eglotx--schedule-file-watch-rebuild server)
+      (eglotx--schedule-file-watch-rebuild server nil state)
       nil)))
 
 

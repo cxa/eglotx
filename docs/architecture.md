@@ -434,8 +434,17 @@ pattern set are bounded by `eglotx-file-watcher-limit`; reconciliation dedupes
 physical patterns in a hash, acknowledges the child, then calls Eglot from the
 facade FIFO so project enumeration never runs in the child callback. The
 reconciliation is a coalesced owned projection: Eglot failures retry with
-bounded exponential backoff, and a newer logical state cancels that delay and
-reconciles immediately. Physical watchers are reduced to their defined LSP
+exponential backoff from 0.1 seconds up to 60 seconds. The validated desired
+union and compiled selectors are retained across retries and invalidated on
+backend retirement. Equal physical targets preserve retry history even when
+logical owners change; changed physical targets reconcile immediately. A
+missing project root is checked before withdrawing the previous registration
+and retried every 60 seconds without project enumeration. Repeated identical
+facade warnings are suppressed after the initial warning and the warning at
+the backoff cap. An explicit `eglotx-retry-file-watches` resets the delay and
+queues an immediate attempt. This does not make upstream enumeration
+asynchronous, and events lost during unavailable watch coverage are not
+replayed. Physical watchers are reduced to their defined LSP
 fields, deduplicated, and stably sorted so hash iteration cannot cause churn.
 
 Workspace file-operation events do not include a registration identifier.

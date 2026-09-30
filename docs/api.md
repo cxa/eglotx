@@ -90,6 +90,18 @@ its values:
 
 Reading status sends no protocol messages and does not mutate routing state.
 
+## `eglotx-retry-file-watches`
+
+```elisp
+(eglotx-retry-file-watches &optional SERVER)
+```
+
+Retry watched-file registration immediately, resetting the failure backoff.
+Interactively, use the current Eglotx server. The attempt runs on the facade
+queue, so the command returns before registration completes. Use it after
+restoring an unavailable project directory to avoid waiting for the next
+60-second probe. It does not reconnect language servers or change project roots.
+
 ## `eglotx-backend-request`
 
 ```elisp

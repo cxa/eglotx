@@ -248,8 +248,15 @@ live in [`architecture.md`](architecture.md); dated research is non-normative.
   `eglotx-file-watcher-limit` (4096 by default). Physical reconciliation runs
   on the facade FIFO after the child request has been acknowledged. Duplicate
   rebuilds coalesce; an upstream Eglot failure retries with bounded exponential
-  backoff, while a newer logical state cancels the delay and reconciles now.
-  Physical watchers retain only defined LSP fields and use a stable sort order.
+  backoff from 0.1 seconds up to 60 seconds. Compiled desired state is reused
+  across retries; ownership changes with an equal physical pattern set preserve
+  the pending delay, while a changed physical target reconciles immediately.
+  An unavailable project root is probed every 60 seconds without enumerating
+  files or withdrawing the existing registration. Identical facade warnings
+  appear on the first failure and when backoff reaches its cap; a different
+  error is reported immediately. `eglotx-retry-file-watches` requests an
+  immediate attempt. Physical watchers retain only defined LSP fields and use
+  a stable sort order.
 - Removing a registration or losing an optional backend removes its watcher
   contribution without disturbing registrations owned by other backends.
 

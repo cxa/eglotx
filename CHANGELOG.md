@@ -6,6 +6,19 @@ All notable changes to Eglotx are documented in this file. The project uses
 
 ## [Unreleased]
 
+### Fixed
+
+- Avoid repeatedly rebuilding file watches for an unavailable project root.
+  Probe the directory every 60 seconds and preserve the previous registration
+  until rebuilding can proceed. Other persistent failures back off up to
+  60 seconds and suppress repeated identical facade warnings. Reuse compiled
+  watcher state across retries and preserve backoff when only owners change.
+
+### Added
+
+- `eglotx-retry-file-watches` to retry registration immediately after restoring
+  a project directory or resolving another watcher failure.
+
 ## [0.1.5] - 2026-09-14
 
 ### Fixed
