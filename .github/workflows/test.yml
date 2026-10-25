@@ -3,6 +3,8 @@ name: test
 on:
   push:
   pull_request:
+  schedule:
+    - cron: "17 2 * * 1" # Monday 10:17 Asia/Shanghai (02:17 UTC).
 
 permissions:
   contents: read
@@ -12,17 +14,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  versions:
+    name: Resolve Emacs versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.resolve.outputs.matrix }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Test version selection
+        run: python3 -m unittest discover -s ci -p 'test_*.py'
+
+      - name: Select supported Emacs releases
+        id: resolve
+        shell: bash
+        run: |
+          matrix="$(curl --fail --silent --show-error --retry 3 --max-time 30 \
+            https://raw.githubusercontent.com/purcell/nix-emacs-ci/master/flake.lock \
+            | python3 ci/eglotx_matrix.py)"
+          printf 'matrix=%s\n' "$matrix" >> "$GITHUB_OUTPUT"
+          printf 'Resolved Emacs matrix: %s\n' "$matrix"
+
   check:
     name: Emacs ${{ matrix.emacs-version }}
+    needs: versions
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
-      matrix:
-        emacs-version:
-          - "29.4"
-          - "30.2"
-          - "snapshot"
+      matrix: ${{ fromJSON(needs.versions.outputs.matrix) }}
 
     steps:
       - name: Check out source

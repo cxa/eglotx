@@ -275,8 +275,10 @@ same-machine baseline.
 `make benchmark` measures route selection, UTF-16 change application,
 capability combination, completion merge/ownership, diagnostic attribution,
 and a large Tailwind shared-default path.  CI runs `make check` on
-Emacs 29.4, 30.2, and `snapshot`; it does not run real-server E2E targets,
-benchmarks, or machine-specific latency gates.
+the latest available patch of each supported Emacs major and `snapshot`;
+the matrix follows the upstream installation manifest automatically. It also
+runs every Monday at 02:17 UTC (10:17 Asia/Shanghai). It does not run
+real-server E2E targets, benchmarks, or machine-specific latency gates.
 
 The documentation map in [`docs/README.md`](docs/README.md) distinguishes the
 public API, normative behavior, current preset policy, implementation details,

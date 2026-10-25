@@ -13,8 +13,13 @@ For configuration details, see [presets](presets.md). For fixture setup, see
 5. Install the fixture dependencies described in the test-project guide.
 
 The reference cloud checks used Emacs 30.1 and original Eglot 1.24.
-CI checks Emacs 29.4, 30.2, and snapshot. The package requires Eglot 1.24
-and jsonrpc 1.0.29 or newer. A version reported by a wrapper does not prove
+CI discovers stable releases from the `nix-emacs-ci` installation manifest,
+selects the latest patch of every major at or above the package's Emacs
+minimum, and adds snapshot. It runs on pushes, pull requests, and every Monday
+at 02:17 UTC (10:17 Asia/Shanghai). The weekly trigger takes effect once the
+workflow is on the default branch. Upstream discovery errors fail the run
+instead of silently reusing an outdated matrix. The package requires Eglot
+1.24 and jsonrpc 1.0.29 or newer. A version reported by a wrapper does not prove
 which executable served the LSP connection. Check its PID, arguments, and
 executable hash. A file extension does not prove which backend ran.
 
@@ -45,7 +50,9 @@ git diff --check
 ```
 
 `make check` compiles with fatal warnings and runs the ERT suites. It loads
-the core test helpers first. CI runs this target only. Real-server targets
+the core test helpers first. Each Emacs CI job runs this target; the matrix
+discovery job also checks version selection with
+`python3 -m unittest discover -s ci -p 'test_*.py'`. Real-server targets
 need their own dependencies. Keep the default Corfu gate at 150 ms when
 comparing with the reference result. Record a different budget explicitly.
 
