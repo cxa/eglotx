@@ -287,9 +287,15 @@
   (dolist (action '(cancel deadline shutdown))
     (let ((eglotx-symbol-chunk-size 2)
           (worker (symbol-function 'eglotx--validate-symbol-response))
+          (drain (symbol-function 'eglotx--drain-work))
+          (turns 0)
           (chunks 0)
           request)
-      (cl-letf (((symbol-function 'eglotx--validate-symbol-response)
+      (cl-letf (((symbol-function 'eglotx--drain-work)
+                 (lambda (server)
+                   (unless (eglotx--work-running-p server) (cl-incf turns))
+                   (funcall drain server)))
+                ((symbol-function 'eglotx--validate-symbol-response)
                  (lambda (server id backend token)
                    (let ((live (gethash id (eglotx--requests server))))
                      (when live (cl-incf chunks))
@@ -299,15 +305,20 @@
                        (should request)
                        (should-not (eglotx--request-completed request))
                        (should (memq (eglotx--request-timer request) timer-list))
-                       ;; Run on the next event-loop turn, before the queued
-                       ;; validation continuation's drain timer is installed.
-                       (run-at-time
-			0 nil
-			(lambda ()
-                          (pcase action
-                            ('cancel (jsonrpc-notify server :$/cancelRequest (list :id id)))
-                            ('deadline (eglotx--request-deadline server id))
-                            ('shutdown (jsonrpc-shutdown server t))))))))))
+                       ;; Interrupt before the next validation chunk.  A
+                       ;; zero-delay timer can lose to the queue's repeating
+                       ;; timer and run only after validation is complete.
+                       (let ((chunk-turn turns))
+                         (eglotx--enqueue-urgent-work
+                          server
+                          (lambda ()
+                            (should (> turns chunk-turn))
+                            (should (eq request (gethash id (eglotx--requests server))))
+                            (should (gethash backend (eglotx--request-symbol-validations request)))
+                            (pcase action
+                              ('cancel (jsonrpc-notify server :$/cancelRequest (list :id id)))
+                              ('deadline (eglotx--request-deadline server id))
+                              ('shutdown (jsonrpc-shutdown server t)))))))))))
         (eglotx-test--with-server
          (server (list (eglotx-symbol-test--spec "good-symbols")
                        (eglotx-symbol-test--spec "unused-symbols")))
@@ -322,11 +333,37 @@
                           (pcase action ('cancel -32800) ('deadline -32002) (_ -1)))))
          (should (eglotx-test--wait-until
                   (lambda () (null (eglotx--work-head server))) 1.0))
-         (should (> chunks 0))
-         (should (< chunks 11))
+         (should (= chunks 1))
          (should (= (hash-table-count (eglotx--requests server)) 0))
          (should-not (eglotx--request-symbol-validations request))
          (should-not (memq (eglotx--request-timer request) timer-list)))))))
+
+(ert-deftest eglotx-symbol-cancellation-after-validation-before-reply-is-terminal ()
+  (let ((finish (symbol-function 'eglotx--finish-ready-request))
+        request)
+    (cl-letf (((symbol-function 'eglotx--finish-ready-request)
+               (lambda (server ready &optional urgent)
+                 (when (eq (eglotx--request-method ready) :textDocument/documentSymbol)
+                   (setq request ready)
+                   (should (eglotx--request-ready-p request))
+                   (jsonrpc-notify server :$/cancelRequest
+                                   (list :id (eglotx--request-id request))))
+                 (funcall finish server ready urgent))))
+      (eglotx-test--with-server
+          (server (list (eglotx-symbol-test--spec "good-symbols")
+                        (eglotx-symbol-test--spec "unused-symbols")))
+        (eglotx-test--initialize server)
+        (let* ((payload (vector (eglotx-symbol-test--symbol "valid")))
+               (error (should-error
+                       (jsonrpc-request server :textDocument/documentSymbol
+                                        (eglotx-symbol-test--params nil payload) :timeout 3)
+                       :type 'jsonrpc-error)))
+          (should (= (alist-get 'jsonrpc-error-code (cddr error)) -32800)))
+        (should (eglotx--request-cancelled request))
+        (should (eglotx--request-completed request))
+        (should-not (eglotx--request-symbol-validations request))
+        (should-not (memq (eglotx--request-timer request) timer-list))
+        (should (zerop (hash-table-count (eglotx--requests server))))))))
 
 (ert-deftest eglotx-symbol-validated-success-survives-pending-sibling-deadline ()
   (let ((eglotx--method-policy-table (copy-hash-table eglotx--method-policy-table)))
