@@ -6,6 +6,10 @@ LISP_FILES = eglotx.el eglotx-eglot.el eglotx-preset-engine.el \
 	eglotx-presets-python.el eglotx-presets-go.el \
 	eglotx-presets-ruby.el eglotx-presets.el
 TEST_FILES ?= $(sort $(wildcard test/*-test.el test/*-tests.el test/test-*.el))
+# Protocol regression suites reuse the core test helpers with `require'.
+# Load that providing file first so a later explicit -l cannot redefine ERTs.
+TEST_LOAD_FILES = $(filter test/eglotx-test.el,$(TEST_FILES)) \
+	$(filter-out test/eglotx-test.el,$(TEST_FILES))
 BENCHMARK_FILES ?= $(sort $(wildcard benchmark/*.el))
 BENCHMARK_FUNCTION ?= eglotx-benchmark-batch
 CORFU_E2E_MAX_SECONDS ?= 0.15
@@ -37,7 +41,7 @@ compile:
 ifneq ($(strip $(TEST_FILES)),)
 test:
 	$(EMACS_BATCH) -L test -l ert \
-	  $(foreach file,$(TEST_FILES),-l $(file)) \
+	  $(foreach file,$(TEST_LOAD_FILES),-l $(file)) \
 	  --funcall ert-run-tests-batch-and-exit
 else
 test:

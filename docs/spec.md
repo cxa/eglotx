@@ -54,6 +54,10 @@ live in [`architecture.md`](architecture.md); dated research is non-normative.
   and does not by itself retire the backend.
 - `shutdown` and `exit` reach every live backend.  Forced facade shutdown closes
   every backend and the internal anchor process.
+  Normal teardown gives all backends one shared `eglotx-shutdown-timeout`
+  process-exit grace. It reports and terminates overdue processes.
+  Unrecoverable failures skip the grace. The grace does not bound every
+  cleanup callback.
 - An explicitly declared notification handler runs outside process filters and
   may issue bounded asynchronous requests through `eglotx-backend-request`;
   each request targets one named sibling and the facade-wide in-flight count is
@@ -135,6 +139,13 @@ live in [`architecture.md`](architecture.md); dated research is non-normative.
 - Document symbols use the highest-priority capable backend so the facade
   cannot mix the alternative `DocumentSymbol[]` and `SymbolInformation[]`
   result shapes.
+  Deferred validation rejects malformed or reversed ranges and selections
+  outside their symbol range. It does not rewrite results or validate the
+  complete symbol schema. Normal partial-success rules still apply.
+  Validation yields after at most `eglotx-symbol-chunk-size` traversal steps.
+  Cancellation and request deadlines remain active until validation completes.
+  At the deadline, unchecked backend results become timeout errors; already
+  validated results retain the normal partial-success behavior.
 - Completion preserves every item without cross-backend de-duplication, ORs
   `isIncomplete`, and negotiates only the `data` and `editRange` item defaults
   the facade can retain compactly. Shared defaults live once per backend
@@ -259,6 +270,14 @@ live in [`architecture.md`](architecture.md); dated research is non-normative.
   a stable sort order.
 - Removing a registration or losing an optional backend removes its watcher
   contribution without disturbing registrations owned by other backends.
+- Identical normalized registration replays are no-ops. Changed options
+  require explicit unregistration. Absent-ID unregistration is a no-op;
+  a mismatched active method is an error. Each batch is atomic.
+  Lowering the retained watcher limit does not invalidate an identical replay
+  that meets the per-request bounds. New registrations must fit the current
+  facade-wide limit.
+- Relative watcher bases remain intact. Eglot 1.24 applies its own
+  `eglot-watch-files-outside-project-root` policy to external bases.
 
 ### Refresh invalidations
 

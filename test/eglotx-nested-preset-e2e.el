@@ -100,8 +100,9 @@
             (let ((exec-path (list bin)))
               (should (= 0 (call-process "git" nil nil nil "init" "-q" repo)))
               (should-not (executable-find "typescript-language-server"))
-              (should (= 1 (call-process "/bin/sh" nil nil nil "-c"
-                                         "command -v typescript-language-server")))
+              (should-not
+               (zerop (call-process "/bin/sh" nil nil nil "-c"
+                                    "command -v typescript-language-server")))
               (should-error (call-process "typescript-language-server"
                                           nil nil nil "--version")
                             :type 'file-missing)

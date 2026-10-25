@@ -25,6 +25,13 @@ backends for hermetic contact tests and opt-in real-server E2E tests:
 - `go_golangci` activates gopls plus golangci-lint-langserver.
 - `ruby_sorbet` activates Ruby LSP plus Sorbet.
 
+The Vue, Svelte, and Astro Biome fixtures enable both full-document support
+and `html.formatter.enabled`; full-document support alone does not enable
+the experimental HTML formatter.  React, Svelte, and Astro Biome E2Es apply
+a real formatting edit and verify a second pass is idempotent, rather than
+only checking which backend was selected.  The Vue fixture currently has
+hermetic preset coverage, not a Biome E2E target.
+
 The repository ignores fixture lockfiles and generated installations; a local
 E2E setup may create both.  Python, Go, and Ruby currently provide hermetic
 fixture coverage only.  The React E2E targets accept project-local

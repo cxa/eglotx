@@ -513,6 +513,64 @@ warmup and after every timed sample."
          (cl-assert (= (hash-table-count (eglotx--owners server))
                        diagnostic-count)))))))
 
+(defun eglotx-benchmark-symbol-validation ()
+  "Measure symbol validation throughput, setup and largest chunk duration."
+  (princ (format "Symbol validation (chunk size %d)\n" eglotx-symbol-chunk-size))
+  (dolist (count '(1000 10000 50000))
+    (let* ((range '(:start (:line 0 :character 0) :end (:line 1 :character 0)))
+           (symbol (list :name "function" :kind 12 :range range :selectionRange range))
+           (payload (make-vector count symbol)))
+      (eglotx-benchmark--measure
+       (format "validate %d symbols" count) 5 count "symbol"
+       (lambda () (eglotx--validate-document-symbols payload))
+       (lambda () (cl-assert (eq payload (eglotx--validate-document-symbols payload)))))
+      (let* ((started (float-time))
+             (walker (eglotx--make-symbol-walker payload))
+             (setup (- (float-time) started))
+             (chunks 0)
+             (maximum 0.0)
+             done)
+        (while (not done)
+          (setq started (float-time)
+                done (eglotx--validate-symbol-chunk walker)
+                maximum (max maximum (- (float-time) started)))
+          (cl-incf chunks))
+        (princ (format "  setup=%.3f ms  chunks=%d  largest chunk=%.3f ms\n"
+                       (* setup 1000) chunks (* maximum 1000)))))))
+
+(defun eglotx-benchmark-registration-noops ()
+  "Measure replay and absent-removal costs with a full registration table."
+  (let ((server (eglotx-benchmark--make-server)))
+    (unwind-protect
+        (let* ((backend (car (eglotx--backends server)))
+               (table (eglotx--backend-registration-methods backend))
+               (registration '(:workspace/didChangeWatchedFiles
+                               :watchers [(:globPattern "**/*.el" :kind 7)])))
+          (dotimes (index eglotx-file-watcher-limit)
+            (puthash (number-to-string index) registration table))
+          (dolist
+              (case '(("full-table identical replay" t
+                       (:registrations
+                        [(:id "0" :method "workspace/didChangeWatchedFiles"
+                          :registerOptions (:watchers [(:globPattern "**/*.el")]))]))
+                      ("full-table absent removal" nil
+                       (:unregisterations
+                        [(:id "absent" :method "workspace/didChangeWatchedFiles")]))))
+            (eglotx-benchmark--measure
+             (car case) 1000 1 "request"
+             (lambda ()
+               (eglotx--handle-registration-request server backend (nth 2 case) (nth 1 case)))
+             (lambda ()
+               (cl-assert (eq table (eglotx--backend-registration-methods backend)))
+               (cl-assert (= (hash-table-count table) eglotx-file-watcher-limit))
+               (cl-assert (null (eglotx--work-head server)))))))
+      (eglotx-benchmark--delete-server server))))
+
+(defun eglotx-benchmark-validation ()
+  "Run symbol and registration validation benchmarks."
+  (eglotx-benchmark-symbol-validation)
+  (eglotx-benchmark-registration-noops))
+
 (defun eglotx-benchmark-batch ()
   "Run all repeatable Eglotx benchmarks and print their measurements."
   (interactive)
@@ -546,7 +604,9 @@ warmup and after every timed sample."
           (princ "\nAll benchmark semantic checks passed.\n"))
       (eglotx-benchmark--delete-server server))
     (princ "\n")
-    (eglotx-benchmark-tailwind-batch)))
+    (eglotx-benchmark-tailwind-batch)
+    (princ "\n")
+    (eglotx-benchmark-validation)))
 
 (provide 'eglotx-benchmark)
 ;;; eglotx-benchmark.el ends here

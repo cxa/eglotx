@@ -119,6 +119,9 @@ Initialization is concurrent:
    notifications.
 
 Graceful shutdown fans out `shutdown`, followed by `exit`, to every live child.
+Facade teardown waits outside backend callbacks. All children share one
+`eglotx-shutdown-timeout` process-exit grace. Overdue children are reported
+and terminated before JSON-RPC cleanup. Unrecoverable failures skip the grace.
 Forced shutdown terminates remaining child processes, cancels owned timers and
 continuations, and closes the anchor. Shutdown is idempotent. A required child
 that exits unexpectedly closes the facade and every sibling. An optional child
@@ -200,8 +203,13 @@ before fan-out; one unbounded target omits it. Graceful shutdown always uses a
 one-second facade deadline.
 
 Child callbacks validate ownership, remove their backend from the pending
-table, and store `(success . payload)` under that backend. The last callback
-and an optional deadline both enter the same idempotent finalizer. The
+table, and store `(success . payload)` under that backend. Successful document
+symbols also own a pending validation cursor. A cursor holds array/index
+frames rather than copying the symbol tree. Each deferred job visits at most
+`eglotx-symbol-chunk-size` symbols or exhausted arrays and then yields.
+Readiness requires both network and validation legs to finish. The optional
+deadline converts unchecked results to errors while preserving validated
+successes, then enters the same idempotent finalizer. The
 finalizer:
 
 1. marks the record terminal before invoking user code;
@@ -210,6 +218,16 @@ finalizer:
 4. walks the immutable target list to compute the method-specific result in
    effective backend order, without sorting callback output; and
 5. releases continuations and aggregation storage.
+
+Queued symbol jobs and finalizers carry a request-incarnation token, so stale
+jobs cannot act on a reused request ID. Cancellation and shutdown discard the
+cursors along with the request. Payloads remain unchanged.
+
+The facade owns one repeating deferred-work timer while its queue is nonempty.
+Rearming before a callback allows successive chunks to advance inside a
+synchronous JSON-RPC process wait. A guard prevents nested drains, and unwind
+cleanup cancels empty or stopped queues. A non-local continuation replaces
+the timer so it cannot remain marked as triggered by the interrupted handler.
 
 Cancellation first marks the parent terminal, then sends `$/cancelRequest` for
 every child request that has already been assigned an identifier. A child
@@ -446,6 +464,13 @@ queues an immediate attempt. This does not make upstream enumeration
 asynchronous, and events lost during unavailable watch coverage are not
 replayed. Physical watchers are reduced to their defined LSP
 fields, deduplicated, and stably sorted so hash iteration cannot cause churn.
+Relative patterns retain their base URI for Eglot 1.24. External bases follow
+Eglot's watch policy. Identical registration replays and absent-ID removals
+retain no new state. Changed options or mismatched active methods reject the
+whole batch. Shutdown clears all retained registration tables.
+Registration transactions copy their table only before the first mutation
+and count facade-wide retained patterns only on the first new ID. Replays
+and absent-ID removals retain no copy and trigger no watcher reconciliation.
 
 Workspace file-operation events do not include a registration identifier.
 Static operations are therefore deterministic singletons whose advertised

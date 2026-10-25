@@ -8,6 +8,7 @@
 (require 'flymake)
 (require 'eglot)
 (require 'eglotx-presets)
+(require 'eglotx-formatting-e2e)
 
 (define-derived-mode eglotx-preset-e2e--tsx-mode js-jsx-mode "Eglotx-E2E-TSX")
 
@@ -166,7 +167,7 @@
           ("eslint" "vscode-eslint-language-server")
           (_ (error "Unsupported E2E backend %S" optional))))
        buffer server completion-count completion-elapsed
-       completion-resolved-labels corfu-profile)
+       completion-resolved-labels corfu-profile formatting-verified)
   (dolist (program
            (list "typescript-language-server"
                  "tailwindcss-language-server"
@@ -237,6 +238,8 @@
             (unless (equal formatter expected-formatter)
               (error "%s formatter is %S, expected %S"
                      project-name formatter expected-formatter)))
+          (when (equal optional "biome")
+            (setq formatting-verified (eglotx-formatting-e2e-assert)))
           (save-excursion
             (goto-char (point-min))
             (unless (search-forward "className=\"p-4 " nil t)
@@ -356,6 +359,7 @@
                    (flymake-diagnostic-text type-diagnostic)
                    :completionCount completion-count
                    :completionSeconds completion-elapsed
+                   :formattingVerified formatting-verified
                    :resolvedLabels completion-resolved-labels
                    :corfuProfile corfu-profile))
             (terpri))))
