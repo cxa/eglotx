@@ -8,6 +8,16 @@ All notable changes to Eglotx are documented in this file. The project uses
 
 ### Fixed
 
+- Preserve relative watched-file bases for Eglot 1.24, including external roots.
+  Accept identical registration replays and absent-ID unregistration.
+  Reject changed replay options and mismatched methods atomically.
+- Reject malformed document-symbol ranges at deferred request finalization.
+  Preserve valid results and the normal partial-success policy.
+- Disable adaptive read buffering only for owned backend processes.
+- Wait for backend exit with one shared grace period. Report forced exits and
+  clear retained registrations during shutdown.
+- Load regression helpers before dependent ERT suites. Require effective,
+  idempotent formatting edits in the affected Biome E2E tests.
 - Avoid repeatedly rebuilding file watches for an unavailable project root.
   Probe the directory every 60 seconds and preserve the previous registration
   until rebuilding can proceed. Other persistent failures back off up to
@@ -16,6 +26,8 @@ All notable changes to Eglotx are documented in this file. The project uses
 
 ### Added
 
+- `eglotx-shutdown-timeout` to control the shared process-exit grace.
+- A [reliability checklist](docs/validation.md) for repeatable validation.
 - `eglotx-retry-file-watches` to retry registration immediately after restoring
   a project directory or resolving another watcher failure.
 

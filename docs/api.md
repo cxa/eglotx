@@ -129,6 +129,7 @@ Use `M-x customize-group RET eglotx` for the core and
 | Variable | Default | Purpose |
 | --- | ---: | --- |
 | `eglotx-request-timeout` | `30` | Default facade/backend request deadline; `nil` disables it. |
+| `eglotx-shutdown-timeout` | `1.5` | Shared backend process-exit grace in seconds. Overdue processes are reported and terminated. Unrecoverable failures skip the grace. This does not bound every cleanup callback. |
 | `eglotx-backend-events-buffer-size` | `0` | Per-child JSON-RPC event-buffer size; zero disables hot-path payload logging and `nil` is unlimited. |
 | `eglotx-backend-stderr-buffer-size` | `65536` | Characters retained per child stderr buffer; `nil` is unlimited. |
 | `eglotx-stream-diagnostics` | `t` | Use Eglot's private streaming projection for open documents when the client advertises it and every child is push-only. |

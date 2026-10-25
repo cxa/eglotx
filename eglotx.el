@@ -61,6 +61,16 @@
   :group 'eglot
   :prefix "eglotx-")
 
+(defcustom eglotx-shutdown-timeout 1.5
+  "Maximum seconds to let all backend processes exit during shutdown.
+
+The grace period is shared by all backends, not repeated for each one.
+Backends still alive afterward are explicitly reported and terminated.
+Unrecoverable facade failures skip this grace period."
+  :type 'number
+  :safe (lambda (value) (and (numberp value) (>= value 0)))
+  :group 'eglotx)
+
 (defcustom eglotx-request-timeout 30
   "Maximum seconds a facade request may wait for backends.
 
@@ -1259,7 +1269,11 @@ prefix, such as `typescript' and `typescript-eslint'."
   "Create BACKEND's process for SERVER named CONNECTION-NAME."
   ;; `jsonrpc-process-connection' pre-creates this exact forwarding buffer
   ;; before invoking its process factory.  Reuse and bound it on every path.
-  (let ((default-directory (eglotx--project-directory server))
+  (let (;; Adaptive read buffering intentionally delays short process reads.
+        ;; LSP responses are latency-sensitive; capture this setting only for
+        ;; these owned processes rather than changing the user's global value.
+        (process-adaptive-read-buffering nil)
+        (default-directory (eglotx--project-directory server))
         (process-environment (copy-sequence process-environment))
         (stderr-buffer
          (get-buffer-create (format "*%s stderr*" connection-name))))
@@ -1949,16 +1963,45 @@ Return non-nil when the ledger is empty."
 (defun eglotx--close-backends (server cleanup &optional force)
   "Close every backend owned by SERVER.
 When CLEANUP is non-nil, also remove their JSON-RPC buffers.  FORCE deletes
-live processes before waiting and is reserved for unrecoverable failures."
-  (dolist (backend (eglotx--backends server))
-    (when-let* ((connection (eglotx--backend-connection backend)))
-      (when (and force
-                 (process-live-p (jsonrpc--process connection)))
-        (delete-process (jsonrpc--process connection)))
-      (ignore-errors (jsonrpc-shutdown connection cleanup))
+live processes without a grace period and is reserved for failures.
+This runs from facade teardown, never a backend response callback."
+  (let ((connections
+         (cl-loop for backend in (eglotx--backends server)
+                  for connection = (eglotx--backend-connection backend)
+                  when connection collect (cons backend connection))))
+    ;; All children have already received `exit'.  Wait for them together:
+    ;; jsonrpc.el's short, per-connection grace cannot accommodate servers
+    ;; that flush final notifications asynchronously before terminating.
+    (unless force
+      (let ((deadline (+ (float-time) (max 0 eglotx-shutdown-timeout))))
+        (while (and (< (float-time) deadline)
+                    (cl-some
+                     (lambda (entry)
+                       (process-live-p (jsonrpc--process (cdr entry))))
+                     connections))
+          (accept-process-output nil
+                                 (min 0.05 (max 0 (- deadline (float-time))))))))
+    ;; Terminate every overdue process before calling jsonrpc cleanup.  This
+    ;; keeps the bound shared even when several children ignore `exit'.
+    (dolist (entry connections)
+      (let ((backend (car entry))
+            (process (jsonrpc--process (cdr entry))))
+        (when (process-live-p process)
+          (unless force
+            (let ((message
+                   (format "Backend %s did not exit within %.3fs; force terminating"
+                           (eglotx--backend-name backend)
+                           eglotx-shutdown-timeout)))
+              (setf (eglotx--backend-state backend) 'stopped
+                    (eglotx--backend-last-error backend) message)
+              (display-warning 'eglotx message :warning)))
+          (delete-process process))))
+    (dolist (entry connections)
+      (ignore-errors (jsonrpc-shutdown (cdr entry) cleanup))
       (when cleanup
-        (eglotx--cleanup-child-buffers connection)))
-    (setf (eglotx--backend-state backend) 'stopped)))
+        (eglotx--cleanup-child-buffers (cdr entry))))
+    (dolist (backend (eglotx--backends server))
+      (setf (eglotx--backend-state backend) 'stopped))))
 
 (defun eglotx--status-snapshot (server)
   "Return a read-only status snapshot for SERVER."
@@ -2992,6 +3035,29 @@ releasing work-done tokens before queued begin/end notifications run."
                        (eglotx--backend-required backend))
              return (cdr probe))))
 
+(defun eglotx--validate-symbol-outcomes (request)
+  "Validate REQUEST's symbol results at the deferred finalization boundary.
+Convert malformed backend legs to ordinary errors before normal success/error
+selection.  Keep full-tree traversal out of backend JSON-RPC callbacks; this
+uses the request's existing queue, cancellation and cleanup ownership."
+  (when (eq (eglotx--request-method request) :textDocument/documentSymbol)
+    (dolist (backend (eglotx--request-targets request))
+      (when-let* ((outcome (gethash backend (eglotx--request-results request)))
+                  ((car outcome)))
+        (condition-case err
+            (eglotx--validate-document-symbols (cdr outcome))
+          (error
+           (puthash
+            backend
+            (cons nil
+                  (list :code -32603
+                        :message
+                        (format
+                         "Backend %s returned malformed document symbols: %s"
+                         (eglotx--backend-name backend)
+                         (error-message-string err))))
+            (eglotx--request-results request))))))))
+
 (defun eglotx--finish-request (server request &optional timed-out-p)
   "Finalize REQUEST exactly once and reply through SERVER.
 TIMED-OUT-P means the facade deadline fired with pending legs."
@@ -3002,6 +3068,7 @@ TIMED-OUT-P means the facade deadline fired with pending legs."
       (cancel-timer timer))
     (eglotx--release-request-progress server request)
     (unless (eglotx--request-cancelled request)
+      (eglotx--validate-symbol-outcomes request)
       (let ((required-error (eglotx--required-initialize-error request))
             (successes (eglotx--request-outcomes request t))
             (errors (eglotx--request-outcomes request nil)))
@@ -3207,6 +3274,7 @@ Pass CLEANUP through to each backend and the superclass implementation."
       (clrhash (eglotx--diagnostic-cursors server))
       (clrhash (eglotx--diagnostic-cursor-subjects server))
       (dolist (backend (eglotx--backends server))
+        (clrhash (eglotx--backend-registration-methods backend))
         (dolist (kind '(owner command diagnostic))
           (eglotx--ledger-clear (eglotx--backend-ledger backend kind))))
       (clrhash (eglotx--backend-id-table server))
@@ -4523,39 +4591,28 @@ Nil means the protocol's universal null selector."
                       (eglotx--uri-to-path server uri)))
      :kind kind)))
 
-(defun eglotx--physical-file-watcher (server watcher)
-  "Return a string-glob watcher equivalent to WATCHER for SERVER.
-Eglot 29 and 30 cannot compile LSP RelativePattern objects directly."
-  (let* ((glob (plist-get watcher :globPattern))
-         (relative-p (and (listp glob) (plist-member glob :pattern))))
-    (list
-     :globPattern
-     (if (not relative-p)
-         glob
-       (let* ((base-uri (plist-get glob :baseUri))
-              (uri (if (listp base-uri) (plist-get base-uri :uri) base-uri))
-              (base (and uri (file-name-as-directory
-                              (eglotx--uri-to-path server uri))))
-              (project (file-name-as-directory
-                        (eglotx--project-directory server)))
-              (pattern (plist-get glob :pattern))
-              (relative (and base
-                             (eglotx--relative-candidate base project))))
-         (unless (and relative (stringp pattern))
-           (jsonrpc-error
-            "Relative watched-file pattern must be inside the project"))
-         (if (member relative '("." "./"))
-             pattern
-           (concat (file-name-as-directory relative) pattern))))
-     :kind (or (plist-get watcher :kind) 7))))
+(defun eglotx--physical-file-watcher (_server watcher)
+  "Return a detached physical projection of normalized WATCHER.
+The required Eglot 1.24 supports RelativePattern objects, including bases
+outside the project.  Preserve those bases so Eglot can group the watches
+and enforce `eglot-watch-files-outside-project-root' itself."
+  (copy-tree watcher))
 
 (defun eglotx--file-watcher-less-p (left right)
   "Return non-nil when physical watcher LEFT sorts before RIGHT."
-  (let ((left-glob (plist-get left :globPattern))
-        (right-glob (plist-get right :globPattern)))
-    (if (equal left-glob right-glob)
-        (< (plist-get left :kind) (plist-get right :kind))
-      (string< left-glob right-glob))))
+  (let* ((left-glob (plist-get left :globPattern))
+         (right-glob (plist-get right :globPattern))
+         (left-base (and (listp left-glob) (plist-get left-glob :baseUri)))
+         (right-base (and (listp right-glob) (plist-get right-glob :baseUri)))
+         (left-pattern (if left-base (plist-get left-glob :pattern) left-glob))
+         (right-pattern (if right-base (plist-get right-glob :pattern) right-glob)))
+    (cond
+     ((not (equal left-base right-base))
+      (or (null left-base)
+          (and right-base (string< left-base right-base))))
+     ((not (equal left-pattern right-pattern))
+      (string< left-pattern right-pattern))
+     (t (< (plist-get left :kind) (plist-get right :kind))))))
 
 (defun eglotx--collect-file-watch-state
     (server &optional staged-backend staged-registrations)
@@ -4754,11 +4811,15 @@ historical LSP misspelling accepted by Eglot."
     (server backend params register-p)
   "Apply BACKEND's watched-files registration PARAMS through SERVER.
 Eglot advertises dynamic registration only for watched files.  Reject every
-other method instead of maintaining state the consuming client cannot use."
+other registration method instead of maintaining state the client cannot use.
+Like Eglot, accept well-formed unregistration of absent IDs as a no-op.
+Repeated registrations must match their existing normalized options; a
+changed registration requires explicit unregistration first."
   (let* ((staged
           (copy-hash-table (eglotx--backend-registration-methods backend)))
          (seen (make-hash-table :test #'equal))
-         (watcher-count 0))
+         (watcher-count 0)
+         changed-p)
     ;; Existing live registrations already satisfy the facade-wide invariant.
     ;; Count every backend, substituting this transaction's staged table, so
     ;; each incoming registration is rejected before normalizing child-owned
@@ -4785,21 +4846,22 @@ other method instead of maintaining state the consuming client cannot use."
     (dolist (entry (eglotx--registration-entries params register-p))
       (let* ((id (plist-get entry :id))
              (raw-method (plist-get entry :method))
-             (method (and raw-method (eglotx--method-key raw-method)))
+             (method (and (stringp raw-method)
+                          (not (string-empty-p raw-method))
+                          (eglotx--method-key raw-method)))
              (active (and (stringp id) (gethash id staged))))
         (unless (stringp id)
           (jsonrpc-error "Registration IDs must be strings"))
-        (unless (eq method :workspace/didChangeWatchedFiles)
+        (unless (and (stringp raw-method) (not (string-empty-p raw-method)))
+          (jsonrpc-error "Registration methods must be nonempty strings"))
+        (when (and register-p (not (eq method :workspace/didChangeWatchedFiles)))
           (jsonrpc-error
-           "Eglot did not negotiate dynamic registration for %s"
-           (or method raw-method)))
+           "Eglot did not negotiate dynamic registration for %s" method))
         (when (gethash id seen)
           (jsonrpc-error "Duplicate registration ID %s" id))
         (puthash id t seen)
         (if register-p
             (progn
-              (when active
-                (jsonrpc-error "Registration ID %s is already active" id))
               (unless (eglotx--backend-allows-p backend method)
                 (jsonrpc-error "Backend method %s is excluded by :only"
                                method))
@@ -4814,34 +4876,42 @@ other method instead of maintaining state the consuming client cannot use."
                   (unless watchers
                     (jsonrpc-error
                      "Watched-files registration needs at least one watcher"))
-                  (when (> (+ watcher-count (length watchers))
+                  (when (> (+ watcher-count (if active 0 (length watchers)))
                            eglotx-file-watcher-limit)
                     (jsonrpc-error
                      "Watched-file registrations exceed the %d-pattern limit"
                      eglotx-file-watcher-limit))
-                  (cl-incf watcher-count (length watchers))
-                  ;; Retain only the option path used by routing and copy that
-                  ;; bounded path so no child-owned JSON is retained later.
-                  (puthash id
-                           (cons method
-                                 (list :watchers
-                                       (vconcat
-                                        (mapcar
-                                         #'eglotx--normalize-file-watcher
-                                         watchers))))
-                           staged))))
-          (unless active
-            (jsonrpc-error "Unknown watched-files registration ID %s" id))
-          (remhash id staged))))
+                  ;; Normalize before comparing replayed options.  Only new
+                  ;; registrations consume retained capacity or schedule work.
+                  (let ((registration
+                         (cons method
+                               (list :watchers
+                                     (vconcat
+                                      (mapcar
+                                       #'eglotx--normalize-file-watcher
+                                       watchers))))))
+                    (if active
+                        (unless (equal active registration)
+                          (jsonrpc-error
+                           "Registration ID %s is active with different options" id))
+                      (cl-incf watcher-count (length watchers))
+                      (puthash id registration staged)
+                      (setq changed-p t))))))
+          (when active
+            (unless (eq method (car active))
+              (jsonrpc-error "Registration ID %s belongs to a different method" id))
+            (remhash id staged)
+            (setq changed-p t)))))
     ;; Compile every staged logical watcher before committing.  Physical Eglot
     ;; registration can enumerate a whole project, so run that upstream work
     ;; after the child receives its response rather than in this callback.
-    (let ((state
-           (eglotx--collect-file-watch-state server backend staged)))
-      (setf (eglotx--backend-registration-methods backend) staged
-            (eglotx--watch-selectors server) (cdr state))
-      (eglotx--schedule-file-watch-rebuild server nil state)
-      nil)))
+    (when changed-p
+      (let ((state
+             (eglotx--collect-file-watch-state server backend staged)))
+        (setf (eglotx--backend-registration-methods backend) staged
+              (eglotx--watch-selectors server) (cdr state))
+        (eglotx--schedule-file-watch-rebuild server nil state)))
+    nil))
 
 
 (defun eglotx--semantic-refresh-owner-p (server backend)
@@ -5529,6 +5599,60 @@ Unknown, malformed, late, and out-of-order notifications are consumed."
   (and (eglotx--json-object-p value)
        (eglotx--position-p (plist-get value :start))
        (eglotx--position-p (plist-get value :end))))
+
+(defun eglotx--position-before-or-equal-p (left right)
+  "Return non-nil when valid LSP positions LEFT and RIGHT are ordered."
+  (let ((left-line (plist-get left :line))
+        (right-line (plist-get right :line)))
+    (or (< left-line right-line)
+        (and (= left-line right-line)
+             (<= (plist-get left :character)
+                 (plist-get right :character))))))
+
+(defun eglotx--validate-symbol-range (range name field)
+  "Validate symbol NAME's RANGE in FIELD without changing it."
+  (unless (and (eglotx--range-p range)
+               (eglotx--position-before-or-equal-p
+                (plist-get range :start) (plist-get range :end)))
+    (signal 'eglotx-error
+            (list (format "Symbol %S has malformed or reversed %s" name field)))))
+
+(defun eglotx--validate-document-symbols (payload)
+  "Validate document-symbol PAYLOAD ranges without mutating the response.
+Both DocumentSymbol arrays and SymbolInformation arrays are allowed, as is
+JSON null.  Walk child arrays iteratively so a deep hierarchy cannot exhaust
+Lisp's call stack.  Reject an invalid result as a whole; never swap endpoints
+or silently remove symbols."
+  (unless (or (null payload) (vectorp payload))
+    (signal 'eglotx-error '("Document symbols must be an array or null")))
+  (let ((pending (append payload nil)))
+    (while pending
+      (let* ((symbol (pop pending))
+             (name (and (eglotx--json-object-p symbol)
+                        (plist-get symbol :name))))
+        (unless (eglotx--json-object-p symbol)
+          (signal 'eglotx-error '("Malformed document-symbol object")))
+        (if (plist-member symbol :location)
+            (eglotx--validate-symbol-range
+             (plist-get (plist-get symbol :location) :range)
+             name "location.range")
+          (let ((range (plist-get symbol :range))
+                (selection (plist-get symbol :selectionRange))
+                (children (plist-get symbol :children)))
+            (eglotx--validate-symbol-range range name "range")
+            (eglotx--validate-symbol-range selection name "selectionRange")
+            (unless (and
+                     (eglotx--position-before-or-equal-p
+                      (plist-get range :start) (plist-get selection :start))
+                     (eglotx--position-before-or-equal-p
+                      (plist-get selection :end) (plist-get range :end)))
+              (signal 'eglotx-error
+                      (list (format "Symbol %S selectionRange is outside range"
+                                    name))))
+            (unless (or (null children) (vectorp children))
+              (signal 'eglotx-error '("Document-symbol children must be an array")))
+            (seq-doseq (child children) (push child pending)))))))
+  payload)
 
 (defun eglotx--diagnostic-related-information-p (value)
   "Return non-nil when VALUE is valid DiagnosticRelatedInformation."

@@ -10,6 +10,7 @@
 (require 'flymake)
 (require 'eglot)
 (require 'eglotx-presets)
+(require 'eglotx-formatting-e2e)
 
 (defun eglotx-embedded-web-preset-e2e--diagnostic-source (diagnostic)
   "Return the LSP source recorded on Flymake DIAGNOSTIC."
@@ -93,7 +94,7 @@ CONFIG declares `:language', `:mode', `:contact', `:test-directory',
             (plist-get config :test-directory))))
          (source (expand-file-name (plist-get config :source) root))
          (bin (expand-file-name "node_modules/.bin/" root))
-         buffer server tailwind-label primary-label)
+         buffer server tailwind-label primary-label formatting-verified)
     (dolist (program
              (list (plist-get config :primary-program)
                    "tailwindcss-language-server"
@@ -152,6 +153,8 @@ CONFIG declares `:language', `:mode', `:contact', `:test-directory',
               (unless (equal formatter expected-formatter)
                 (error "%s formatter is %S, expected %S"
                        display-name formatter expected-formatter)))
+            (when (equal optional-backend "biome")
+              (setq formatting-verified (eglotx-formatting-e2e-assert)))
             (setq tailwind-label
                   (eglotx-embedded-web-preset-e2e--assert-completion
                    server "class=\"p-4 " "block" "tailwindcss")
@@ -212,6 +215,7 @@ CONFIG declares `:language', `:mode', `:contact', `:test-directory',
                      (mapcar #'eglotx--backend-name
                              (eglotx--backends server))
                      :formatter expected-formatter
+                     :formattingVerified formatting-verified
                      :tailwindResolvedLabel tailwind-label
                      :primaryResolvedLabel primary-label
                      :typeDiagnostic

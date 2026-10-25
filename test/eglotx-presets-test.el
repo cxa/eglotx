@@ -357,6 +357,20 @@ Return a cons of its executable and package directory."
              (backend (eglotx-presets-test--backend contact "biome")))
         (should (memq :textDocument/formatting (plist-get backend :only)))))))
 
+(ert-deftest eglotx-presets-biome-embedded-fixtures-enable-formatting ()
+  "Full-document parsing alone does not enable Biome's HTML formatter."
+  (dolist (framework '("vue" "svelte" "astro"))
+    (let* ((path (expand-file-name
+                  (format "projects/%s_ts_tailwind_biome/biome.json" framework)
+                  eglotx-presets-test--directory))
+           (config (with-temp-buffer
+                     (insert-file-contents path)
+                     (json-parse-buffer :object-type 'hash-table)))
+           (html (gethash "html" config)))
+      (should (eq (gethash "experimentalFullSupportEnabled" html) t))
+      (should (hash-table-p (gethash "formatter" html)))
+      (should (eq (gethash "enabled" (gethash "formatter" html)) t)))))
+
 (ert-deftest eglotx-presets-vue-fixtures-isolate-optional-backends ()
   (eglotx-presets-test--with-directory (tools)
     (eglotx-presets-test--vue-language-server tools)

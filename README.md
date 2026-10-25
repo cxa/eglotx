@@ -283,6 +283,8 @@ public API, normative behavior, current preset policy, implementation details,
 and dated research.  Read [`CODING_STANDARDS.md`](CODING_STANDARDS.md) before
 changing a hot path.  Maintainers cut versions using
 [`docs/releasing.md`](docs/releasing.md).
+Use the [reliability checklist](docs/validation.md) to avoid false passes and
+record environment limits.
 
 ## Scope and prior art
 

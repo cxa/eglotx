@@ -119,6 +119,9 @@ Initialization is concurrent:
    notifications.
 
 Graceful shutdown fans out `shutdown`, followed by `exit`, to every live child.
+Facade teardown waits outside backend callbacks. All children share one
+`eglotx-shutdown-timeout` process-exit grace. Overdue children are reported
+and terminated before JSON-RPC cleanup. Unrecoverable failures skip the grace.
 Forced shutdown terminates remaining child processes, cancels owned timers and
 continuations, and closes the anchor. Shutdown is idempotent. A required child
 that exits unexpectedly closes the facade and every sibling. An optional child
@@ -446,6 +449,10 @@ queues an immediate attempt. This does not make upstream enumeration
 asynchronous, and events lost during unavailable watch coverage are not
 replayed. Physical watchers are reduced to their defined LSP
 fields, deduplicated, and stably sorted so hash iteration cannot cause churn.
+Relative patterns retain their base URI for Eglot 1.24. External bases follow
+Eglot's watch policy. Identical registration replays and absent-ID removals
+retain no new state. Changed options or mismatched active methods reject the
+whole batch. Shutdown clears all retained registration tables.
 
 Workspace file-operation events do not include a registration identifier.
 Static operations are therefore deterministic singletons whose advertised

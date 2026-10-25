@@ -12,6 +12,7 @@ competing descriptions of the project.
 | [`spec.md`](spec.md) | Normative facade behavior, performance requirements, compatibility, non-goals, and acceptance checks. |
 | [`architecture.md`](architecture.md) | How the current implementation satisfies the specification.  Private data structures and algorithms are descriptive, not public API. |
 | [`releasing.md`](releasing.md) | Maintainer checklist for versioning, tagging, pushing, and creating a GitHub release. |
+| [`validation.md`](validation.md) | Reusable checks for runtime identity, roots, feature results, and process cleanup. |
 | [`../CHANGELOG.md`](../CHANGELOG.md) | User-visible changes by release; it is not a second feature specification. |
 | [`research/`](research/) | Dated, source-linked decision inputs.  Recommendations and local implementation snapshots there are historical unless promoted into the specification or preset catalog. |
 
