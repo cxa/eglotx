@@ -129,6 +129,7 @@ Use `M-x customize-group RET eglotx` for the core and
 | Variable | Default | Purpose |
 | --- | ---: | --- |
 | `eglotx-request-timeout` | `30` | Default facade/backend request deadline; `nil` disables it. |
+| `eglotx-symbol-chunk-size` | `256` | Maximum symbol traversal steps per deferred job, including array exits. Validation remains subject to request cancellation and timeout. |
 | `eglotx-shutdown-timeout` | `1.5` | Shared backend process-exit grace in seconds. Overdue processes are reported and terminated. Unrecoverable failures skip the grace. This does not bound every cleanup callback. |
 | `eglotx-backend-events-buffer-size` | `0` | Per-child JSON-RPC event-buffer size; zero disables hot-path payload logging and `nil` is unlimited. |
 | `eglotx-backend-stderr-buffer-size` | `65536` | Characters retained per child stderr buffer; `nil` is unlimited. |

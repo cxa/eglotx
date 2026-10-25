@@ -178,6 +178,16 @@ event loop."
   :type 'positive-integer
   :group 'eglotx)
 
+(defcustom eglotx-symbol-chunk-size 256
+  "Maximum symbol traversal steps processed per deferred work item.
+
+A step validates one symbol or leaves one exhausted array.  Large symbol
+results yield between chunks while retaining request cancellation and timeout
+ownership.  This bounds traversal work, not the size of one symbol object."
+  :type 'positive-integer
+  :safe (lambda (value) (and (integerp value) (> value 0)))
+  :group 'eglotx)
+
 (defconst eglotx--retirement-retry-base-delay 0.05
   "Initial seconds before retrying interrupted backend retirement work.")
 
@@ -454,9 +464,16 @@ limit is per facade and independent from ordinary Eglot requests."
   results
   child-ids
   progress-mappings
+  symbol-validations
+  symbol-validation-token
   timer
   cancelled
   completed)
+
+(cl-defstruct (eglotx--symbol-walker
+               (:constructor eglotx--symbol-walker-create))
+  "Request-owned traversal frames, each an array paired with its next index."
+  frames)
 
 (cl-defstruct (eglotx--direct-request
                (:constructor eglotx--direct-request-create))
@@ -782,6 +799,9 @@ cannot carry a connection-local `:id'.")
    (work-timer
     :initform nil
     :accessor eglotx--work-timer)
+   (work-running-p
+    :initform nil
+    :accessor eglotx--work-running-p)
    (documents
     :initform (make-hash-table :test #'equal)
     :accessor eglotx--documents)
@@ -1329,60 +1349,86 @@ prefix, such as `typescript' and `typescript-eslint'."
 (defvar eglotx--deferred-work-yield-p nil
   "Dynamically non-nil when the current facade drain must end after its job.")
 
+(defun eglotx--ensure-work-timer (server)
+  "Arm SERVER's queue timer if it has no current owner."
+  (when (and (eglotx--work-head server)
+             (not (eglotx--work-running-p server))
+             (not (memq (eglotx--state server) '(stopping dead)))
+             (null (eglotx--work-timer server)))
+    ;; A repeating timer is rearmed before its callback runs.  Newly created
+    ;; one-shot timers inside a callback can otherwise sleep until unrelated
+    ;; I/O during a synchronous jsonrpc process wait.
+    (setf (eglotx--work-timer server)
+          (run-at-time 0 0.001 #'eglotx--drain-work server))))
+
 (defun eglotx--drain-work (server)
   "Run a bounded batch of deferred SERVER work in FIFO order."
-  (setf (eglotx--work-timer server) 'running)
-  ;; Each job is atomic: losing a finalizer halfway through could strand its
-  ;; parent continuation.  A pending C-g stops before the next job, and is
-  ;; delivered after the unwind cleanup has rescheduled the remaining queue.
   (let ((inhibit-quit t))
-    (unwind-protect
-        (let ((remaining eglotx-work-batch-size)
-              (eglotx--deferred-work-yield-p nil))
-          (while (and (> remaining 0)
-                      (not quit-flag)
-                      (not eglotx--deferred-work-yield-p)
-                      (eglotx--work-head server))
-            (let* ((cell (eglotx--work-head server))
-                   (job (car cell)))
-              (setf (eglotx--work-head server) (cdr cell))
-              (unless (eglotx--work-head server)
-                (setf (eglotx--work-tail server) nil))
-              (let ((eglotx--in-deferred-work t))
-                (condition-case err
-                    (apply (car job) (cdr job))
-                  (error
-                   (display-warning
-                    'eglotx
-                    (format "Deferred facade work failed: %s"
-                            (error-message-string err))
-                    :error))))
-              (cl-decf remaining))))
-      (setf (eglotx--work-timer server)
-            (and (eglotx--work-head server)
-                 (run-at-time 0 nil #'eglotx--drain-work server))))))
+    (unless (eglotx--work-running-p server)
+      (setf (eglotx--work-running-p server) t)
+      ;; Each job is atomic.  A pending C-g stops before the next job, and is
+      ;; delivered after unwind cleanup has retained or canceled the timer.
+      (let (returned)
+	(unwind-protect
+            (let ((remaining eglotx-work-batch-size)
+                  (eglotx--deferred-work-yield-p nil))
+              (while (and (> remaining 0)
+                          (not quit-flag)
+                          (not eglotx--deferred-work-yield-p)
+                          (eglotx--work-head server))
+		(let* ((cell (eglotx--work-head server))
+                       (job (car cell)))
+                  (setf (eglotx--work-head server) (cdr cell))
+                  (unless (eglotx--work-head server)
+                    (setf (eglotx--work-tail server) nil))
+                  (let ((eglotx--in-deferred-work t))
+                    (condition-case err
+			(apply (car job) (cdr job))
+                      (error
+                       (display-warning
+			'eglotx
+			(format "Deferred facade work failed: %s"
+				(error-message-string err))
+			:error))))
+                  (cl-decf remaining)))
+              (setq returned t))
+          (setf (eglotx--work-running-p server) nil)
+          (if (and (eglotx--work-head server)
+                   (not (memq (eglotx--state server) '(stopping dead))))
+              (progn
+		;; A synchronous JSON-RPC continuation can throw out of the
+		;; timer handler before it clears the repeat's triggered flag.
+		;; Replace that timer when the drain unwinds non-locally.
+		(unless returned
+                  (when-let* ((timer (eglotx--work-timer server))
+                              ((timerp timer)))
+                    (cancel-timer timer))
+                  (setf (eglotx--work-timer server) nil))
+		(eglotx--ensure-work-timer server))
+            (when-let* ((timer (eglotx--work-timer server))
+			((timerp timer)))
+              (cancel-timer timer))
+            (setf (eglotx--work-timer server) nil)))))))
 
 (defun eglotx--enqueue-work (server function &rest arguments)
   "Append FUNCTION and ARGUMENTS to SERVER's constant-time work queue."
-  (let ((cell (list (cons function arguments))))
-    (if-let* ((tail (eglotx--work-tail server)))
-        (setcdr tail cell)
-      (setf (eglotx--work-head server) cell))
-    (setf (eglotx--work-tail server) cell)
-    (unless (eglotx--work-timer server)
-      (setf (eglotx--work-timer server)
-            (run-at-time 0 nil #'eglotx--drain-work server)))))
+  (unless (memq (eglotx--state server) '(stopping dead))
+    (let ((cell (list (cons function arguments))))
+      (if-let* ((tail (eglotx--work-tail server)))
+          (setcdr tail cell)
+	(setf (eglotx--work-head server) cell))
+      (setf (eglotx--work-tail server) cell)
+      (eglotx--ensure-work-timer server))))
 
 (defun eglotx--enqueue-urgent-work (server function &rest arguments)
   "Prepend urgent FUNCTION and ARGUMENTS to SERVER's work queue."
-  (let ((cell (list (cons function arguments))))
-    (setcdr cell (eglotx--work-head server))
-    (setf (eglotx--work-head server) cell)
-    (unless (eglotx--work-tail server)
-      (setf (eglotx--work-tail server) cell))
-    (unless (eglotx--work-timer server)
-      (setf (eglotx--work-timer server)
-            (run-at-time 0 nil #'eglotx--drain-work server)))))
+  (unless (memq (eglotx--state server) '(stopping dead))
+    (let ((cell (list (cons function arguments))))
+      (setcdr cell (eglotx--work-head server))
+      (setf (eglotx--work-head server) cell)
+      (unless (eglotx--work-tail server)
+	(setf (eglotx--work-tail server) cell))
+      (eglotx--ensure-work-timer server))))
 
 (defun eglotx--enqueue-yielding-urgent-work (server function &rest arguments)
   "Prepend urgent work and yield SERVER's current drain before running it.
@@ -2838,6 +2884,9 @@ returns nil without invoking either callback."
                :owner owner
                :owner-token-shared-p owner-token-shared-p
                :targets targets :pending pending
+               :symbol-validation-token
+               (and (eq key :textDocument/documentSymbol)
+                    (make-symbol "eglotx-symbol-request"))
                :results (make-hash-table :test #'eq))))
         (dolist (backend targets) (puthash backend t pending))
         (puthash id request (eglotx--requests server))
@@ -2888,11 +2937,19 @@ returns nil without invoking either callback."
                 (list :code -32603
                       :message (error-message-string err)))))))))))
 
-(defun eglotx--finish-request-by-id (server id)
+(defun eglotx--request-ready-p (request)
+  "Return non-nil when REQUEST has no network or symbol-validation legs left."
+  (and (zerop (hash-table-count (eglotx--request-pending request)))
+       (or (null (eglotx--request-symbol-validations request))
+           (zerop (hash-table-count
+                   (eglotx--request-symbol-validations request))))))
+
+(defun eglotx--finish-request-by-id (server id &optional token)
   "Finish ready request ID in SERVER if it is still live."
   (when-let* ((request (gethash id (eglotx--requests server)))
-              ((zerop (hash-table-count
-                       (eglotx--request-pending request)))))
+              ((or (null token)
+                   (eq token (eglotx--request-symbol-validation-token request))))
+              ((eglotx--request-ready-p request)))
     (eglotx--finish-request server request)))
 
 (defun eglotx--finish-ready-request (server request &optional urgent-p)
@@ -2906,7 +2963,8 @@ releasing work-done tokens before queued begin/end notifications run."
                #'eglotx--enqueue-urgent-work
              #'eglotx--enqueue-work)
            server #'eglotx--finish-request-by-id
-           server (eglotx--request-id request)))
+           server (eglotx--request-id request)
+           (eglotx--request-symbol-validation-token request)))
 
 (defun eglotx--abort-required-initialize-legs (_server request failed-backend)
   "Cancel REQUEST legs after required FAILED-BACKEND initialization failed."
@@ -2951,6 +3009,15 @@ releasing work-done tokens before queued begin/end notifications run."
       (remhash backend (eglotx--request-pending request))
       (puthash backend (cons success-p payload)
                (eglotx--request-results request))
+      (when (and success-p
+                 (eq (eglotx--request-method request) :textDocument/documentSymbol))
+        (unless (eglotx--request-symbol-validations request)
+          (setf (eglotx--request-symbol-validations request)
+                (make-hash-table :test #'eq)))
+        (puthash backend 'pending (eglotx--request-symbol-validations request))
+        (eglotx--enqueue-work
+         server #'eglotx--validate-symbol-response
+         server id backend (eglotx--request-symbol-validation-token request)))
       (when (and success-p (eq (eglotx--request-method request) :initialize))
         (setf (eglotx--backend-capabilities backend)
               (copy-tree (plist-get payload :capabilities))
@@ -2967,7 +3034,7 @@ releasing work-done tokens before queued begin/end notifications run."
                   (eglotx--backend-required backend))))
         (when required-initialize-failure-p
           (eglotx--abort-required-initialize-legs server request backend))
-        (when (zerop (hash-table-count (eglotx--request-pending request)))
+        (when (eglotx--request-ready-p request)
           (eglotx--finish-ready-request
            server request required-initialize-failure-p))))))
 
@@ -2989,7 +3056,8 @@ releasing work-done tokens before queued begin/end notifications run."
   "Cancel facade request ID on SERVER and all of its child legs."
   (when-let* ((request (gethash id (eglotx--requests server))))
     (setf (eglotx--request-cancelled request) t
-          (eglotx--request-completed request) t)
+          (eglotx--request-completed request) t
+          (eglotx--request-symbol-validations request) nil)
     (remhash id (eglotx--requests server))
     (when-let* ((timer (eglotx--request-timer request)))
       (cancel-timer timer))
@@ -3014,6 +3082,17 @@ releasing work-done tokens before queued begin/end notifications run."
                              (format "Backend %s timed out"
                                      (eglotx--backend-name backend))))
                  (eglotx--request-results request))))
+    (when-let* ((validations (eglotx--request-symbol-validations request)))
+      (maphash
+       (lambda (backend _walker)
+         (puthash backend
+                  (cons nil (list :code -32002
+                                  :message
+                                  (format "Backend %s symbol validation timed out"
+                                          (eglotx--backend-name backend))))
+                  (eglotx--request-results request)))
+       validations)
+      (setf (eglotx--request-symbol-validations request) nil))
     (eglotx--finish-request server request t)))
 
 (defun eglotx--request-outcomes (request success-p)
@@ -3035,40 +3114,56 @@ releasing work-done tokens before queued begin/end notifications run."
                        (eglotx--backend-required backend))
              return (cdr probe))))
 
-(defun eglotx--validate-symbol-outcomes (request)
-  "Validate REQUEST's symbol results at the deferred finalization boundary.
-Convert malformed backend legs to ordinary errors before normal success/error
-selection.  Keep full-tree traversal out of backend JSON-RPC callbacks; this
-uses the request's existing queue, cancellation and cleanup ownership."
-  (when (eq (eglotx--request-method request) :textDocument/documentSymbol)
-    (dolist (backend (eglotx--request-targets request))
-      (when-let* ((outcome (gethash backend (eglotx--request-results request)))
-                  ((car outcome)))
-        (condition-case err
-            (eglotx--validate-document-symbols (cdr outcome))
-          (error
-           (puthash
-            backend
-            (cons nil
-                  (list :code -32603
-                        :message
-                        (format
-                         "Backend %s returned malformed document symbols: %s"
-                         (eglotx--backend-name backend)
-                         (error-message-string err))))
-            (eglotx--request-results request))))))))
+(defun eglotx--validate-symbol-response (server id backend token)
+  "Validate one chunk of BACKEND's symbol response to SERVER request ID.
+TOKEN identifies the request incarnation without retaining its payload."
+  (when-let* ((request (gethash id (eglotx--requests server)))
+              ((eq token (eglotx--request-symbol-validation-token request)))
+              (validations (eglotx--request-symbol-validations request))
+              (walker (gethash backend validations)))
+    (let (done)
+      (condition-case err
+          (progn
+            (when (eq walker 'pending)
+              (setq walker
+                    (eglotx--make-symbol-walker
+                     (cdr (gethash backend (eglotx--request-results request)))))
+              (puthash backend walker validations))
+            (setq done (eglotx--validate-symbol-chunk walker)))
+        (error
+         (puthash backend
+                  (cons nil
+                        (list :code -32603
+                              :message
+                              (format
+                               "Backend %s returned malformed document symbols: %s"
+                               (eglotx--backend-name backend)
+                               (error-message-string err))))
+                  (eglotx--request-results request))
+         (setq done t)))
+      (if done
+          (progn
+            (remhash backend validations)
+            (when (eglotx--request-ready-p request)
+              (eglotx--finish-ready-request server request)))
+        (eglotx--enqueue-work
+         server #'eglotx--validate-symbol-response server id backend token))
+      ;; Appending the continuation permits other facade jobs to run first.
+      ;; Ending this drain also lets timers and client cancellation run.
+      (when eglotx--in-deferred-work
+        (setq eglotx--deferred-work-yield-p t)))))
 
 (defun eglotx--finish-request (server request &optional timed-out-p)
   "Finalize REQUEST exactly once and reply through SERVER.
 TIMED-OUT-P means the facade deadline fired with pending legs."
   (unless (eglotx--request-completed request)
-    (setf (eglotx--request-completed request) t)
+    (setf (eglotx--request-completed request) t
+          (eglotx--request-symbol-validations request) nil)
     (remhash (eglotx--request-id request) (eglotx--requests server))
     (when-let* ((timer (eglotx--request-timer request)))
       (cancel-timer timer))
     (eglotx--release-request-progress server request)
     (unless (eglotx--request-cancelled request)
-      (eglotx--validate-symbol-outcomes request)
       (let ((required-error (eglotx--required-initialize-error request))
             (successes (eglotx--request-outcomes request t))
             (errors (eglotx--request-outcomes request nil)))
@@ -4815,34 +4910,10 @@ other registration method instead of maintaining state the client cannot use.
 Like Eglot, accept well-formed unregistration of absent IDs as a no-op.
 Repeated registrations must match their existing normalized options; a
 changed registration requires explicit unregistration first."
-  (let* ((staged
-          (copy-hash-table (eglotx--backend-registration-methods backend)))
+  (let* ((staged (eglotx--backend-registration-methods backend))
          (seen (make-hash-table :test #'equal))
-         (watcher-count 0)
+         watcher-count
          changed-p)
-    ;; Existing live registrations already satisfy the facade-wide invariant.
-    ;; Count every backend, substituting this transaction's staged table, so
-    ;; each incoming registration is rejected before normalizing child-owned
-    ;; watcher objects that would exceed the retained cap.
-    (when register-p
-      (dolist (candidate (eglotx--backends server))
-        (when (and (eglotx--backend-running-p candidate)
-                   (eglotx--backend-allows-p
-                    candidate :workspace/didChangeWatchedFiles))
-          (maphash
-           (lambda (_id registration)
-             (when (eq (car registration)
-                       :workspace/didChangeWatchedFiles)
-               (cl-incf watcher-count
-                        (length
-                         (plist-get (cdr registration) :watchers)))))
-           (if (eq candidate backend)
-               staged
-             (eglotx--backend-registration-methods candidate)))))
-      (when (> watcher-count eglotx-file-watcher-limit)
-        (jsonrpc-error
-         "Watched-file registrations exceed the %d-pattern limit"
-         eglotx-file-watcher-limit)))
     (dolist (entry (eglotx--registration-entries params register-p))
       (let* ((id (plist-get entry :id))
              (raw-method (plist-get entry :method))
@@ -4876,11 +4947,26 @@ changed registration requires explicit unregistration first."
                   (unless watchers
                     (jsonrpc-error
                      "Watched-files registration needs at least one watcher"))
-                  (when (> (+ watcher-count (if active 0 (length watchers)))
-                           eglotx-file-watcher-limit)
-                    (jsonrpc-error
-                     "Watched-file registrations exceed the %d-pattern limit"
-                     eglotx-file-watcher-limit))
+                  (unless active
+                    ;; A replay retains nothing new, even if the user lowered
+                    ;; the limit.  Count current capacity once, on the first
+                    ;; actual addition, before normalizing its payload.
+                    (unless watcher-count
+                      (setq watcher-count 0)
+                      (dolist (candidate (eglotx--backends server))
+                        (when (and (eglotx--backend-running-p candidate)
+                                   (eglotx--backend-allows-p
+                                    candidate :workspace/didChangeWatchedFiles))
+                          (maphash
+                           (lambda (_id registration)
+                             (cl-incf watcher-count
+                                      (length (plist-get (cdr registration) :watchers))))
+                           (eglotx--backend-registration-methods candidate)))))
+                    (when (> (+ watcher-count (length watchers))
+                             eglotx-file-watcher-limit)
+                      (jsonrpc-error
+                       "Watched-file registrations exceed the %d-pattern limit"
+                       eglotx-file-watcher-limit)))
                   ;; Normalize before comparing replayed options.  Only new
                   ;; registrations consume retained capacity or schedule work.
                   (let ((registration
@@ -4895,13 +4981,17 @@ changed registration requires explicit unregistration first."
                           (jsonrpc-error
                            "Registration ID %s is active with different options" id))
                       (cl-incf watcher-count (length watchers))
-                      (puthash id registration staged)
-                      (setq changed-p t))))))
+                      (unless changed-p
+                        (setq staged (copy-hash-table staged)
+                              changed-p t))
+                      (puthash id registration staged))))))
           (when active
             (unless (eq method (car active))
               (jsonrpc-error "Registration ID %s belongs to a different method" id))
-            (remhash id staged)
-            (setq changed-p t)))))
+            (unless changed-p
+              (setq staged (copy-hash-table staged)
+                    changed-p t))
+            (remhash id staged)))))
     ;; Compile every staged logical watcher before committing.  Physical Eglot
     ;; registration can enumerate a whole project, so run that upstream work
     ;; after the child receives its response rather than in this callback.
@@ -5617,41 +5707,62 @@ Unknown, malformed, late, and out-of-order notifications are consumed."
     (signal 'eglotx-error
             (list (format "Symbol %S has malformed or reversed %s" name field)))))
 
-(defun eglotx--validate-document-symbols (payload)
-  "Validate document-symbol PAYLOAD ranges without mutating the response.
-Both DocumentSymbol arrays and SymbolInformation arrays are allowed, as is
-JSON null.  Walk child arrays iteratively so a deep hierarchy cannot exhaust
-Lisp's call stack.  Reject an invalid result as a whole; never swap endpoints
-or silently remove symbols."
+(defun eglotx--validate-document-symbol (symbol)
+  "Validate one SYMBOL without mutation and return its child array."
+  (unless (eglotx--json-object-p symbol)
+    (signal 'eglotx-error '("Malformed document-symbol object")))
+  (let ((name (plist-get symbol :name)))
+    (if (plist-member symbol :location)
+        (eglotx--validate-symbol-range
+         (plist-get (plist-get symbol :location) :range) name "location.range")
+      (let ((range (plist-get symbol :range))
+            (selection (plist-get symbol :selectionRange))
+            (children (plist-get symbol :children)))
+        (eglotx--validate-symbol-range range name "range")
+        (eglotx--validate-symbol-range selection name "selectionRange")
+        (unless (and
+                 (eglotx--position-before-or-equal-p
+                  (plist-get range :start) (plist-get selection :start))
+                 (eglotx--position-before-or-equal-p
+                  (plist-get selection :end) (plist-get range :end)))
+          (signal 'eglotx-error
+                  (list (format "Symbol %S selectionRange is outside range" name))))
+        (unless (or (null children) (vectorp children))
+          (signal 'eglotx-error '("Document-symbol children must be an array")))
+        children))))
+
+(defun eglotx--make-symbol-walker (payload)
+  "Start constant-time validation of document-symbol PAYLOAD.
+The cursor owns its frames, while PAYLOAD and its child arrays stay untouched."
   (unless (or (null payload) (vectorp payload))
     (signal 'eglotx-error '("Document symbols must be an array or null")))
-  (let ((pending (append payload nil)))
-    (while pending
-      (let* ((symbol (pop pending))
-             (name (and (eglotx--json-object-p symbol)
-                        (plist-get symbol :name))))
-        (unless (eglotx--json-object-p symbol)
-          (signal 'eglotx-error '("Malformed document-symbol object")))
-        (if (plist-member symbol :location)
-            (eglotx--validate-symbol-range
-             (plist-get (plist-get symbol :location) :range)
-             name "location.range")
-          (let ((range (plist-get symbol :range))
-                (selection (plist-get symbol :selectionRange))
-                (children (plist-get symbol :children)))
-            (eglotx--validate-symbol-range range name "range")
-            (eglotx--validate-symbol-range selection name "selectionRange")
-            (unless (and
-                     (eglotx--position-before-or-equal-p
-                      (plist-get range :start) (plist-get selection :start))
-                     (eglotx--position-before-or-equal-p
-                      (plist-get selection :end) (plist-get range :end)))
-              (signal 'eglotx-error
-                      (list (format "Symbol %S selectionRange is outside range"
-                                    name))))
-            (unless (or (null children) (vectorp children))
-              (signal 'eglotx-error '("Document-symbol children must be an array")))
-            (seq-doseq (child children) (push child pending)))))))
+  (eglotx--symbol-walker-create
+   :frames (and (> (length payload) 0) (list (cons payload 0)))))
+
+(defun eglotx--validate-symbol-chunk (walker)
+  "Advance WALKER by at most `eglotx-symbol-chunk-size' traversal steps.
+Return non-nil when validation is complete.  Array entry and exit are bounded
+as well as symbol visits, including unwinding a deeply nested hierarchy."
+  (let ((remaining eglotx-symbol-chunk-size))
+    (while (and (> remaining 0) (eglotx--symbol-walker-frames walker))
+      (let* ((frame (car (eglotx--symbol-walker-frames walker)))
+             (array (car frame))
+             (index (cdr frame)))
+        (if (= index (length array))
+            (pop (eglotx--symbol-walker-frames walker))
+          (setcdr frame (1+ index))
+          (when-let* ((children (eglotx--validate-document-symbol (aref array index)))
+                      ((> (length children) 0)))
+            (push (cons children 0) (eglotx--symbol-walker-frames walker)))))
+      (cl-decf remaining)))
+  (null (eglotx--symbol-walker-frames walker)))
+
+(defun eglotx--validate-document-symbols (payload)
+  "Validate document-symbol PAYLOAD synchronously without mutation.
+This helper shares the incremental validator; live requests use deferred
+chunks instead.  Both symbol formats, empty arrays and JSON null are allowed."
+  (let ((walker (eglotx--make-symbol-walker payload)))
+    (while (not (eglotx--validate-symbol-chunk walker))))
   payload)
 
 (defun eglotx--diagnostic-related-information-p (value)

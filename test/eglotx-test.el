@@ -4082,6 +4082,145 @@ REQUEST-DISPATCHER handles child-to-client requests when supplied."
         (should-not (equal original (gethash "same" (eglotx--backend-registration-methods backend))))
         (eglotx--remove-file-watches server)))))
 
+(ert-deftest eglotx-registration-noops-do-not-copy-or-count-retained-state ()
+  (eglotx-test--with-server
+      (server (list (eglotx-test--spec "alpha") (eglotx-test--spec "beta-full")))
+    (eglotx-test--initialize server)
+    (cl-letf (((symbol-function 'eglot-register-capability) #'ignore)
+              ((symbol-function 'eglot-unregister-capability) #'ignore))
+      (eglotx-test--register-watch server "alpha" "same" "**/*.el")
+      (should (eglotx-test--wait-until
+               (lambda () (null (eglotx--work-head server))) 1.0))
+      (let* ((backend (eglotx-test--backend server "alpha"))
+             (table (eglotx--backend-registration-methods backend))
+             (copy (symbol-function 'copy-hash-table))
+             (scan (symbol-function 'maphash))
+             (copies 0)
+             (scans 0))
+        (cl-letf (((symbol-function 'copy-hash-table)
+                   (lambda (value)
+                     (when (eq value table) (cl-incf copies))
+                     (funcall copy value)))
+                  ((symbol-function 'maphash)
+                   (lambda (function value)
+                     (when (eq value table) (cl-incf scans))
+                     (funcall scan function value))))
+          (dotimes (_ 3)
+            (eglotx-test--register-watch server "alpha" "same" "**/*.el")
+            (eglotx-test--unregister-watch server "alpha" "absent")))
+        (should (= copies 0))
+        (should (= scans 0))
+        (should (eq table (eglotx--backend-registration-methods backend)))
+        (should-not (eglotx--work-head server)))
+      (eglotx--remove-file-watches server))))
+
+(ert-deftest eglotx-registration-mixed-noops-and-removal-failure-are-atomic ()
+  (eglotx-test--with-server
+      (server (list (eglotx-test--spec "alpha") (eglotx-test--spec "beta-full")))
+    (eglotx-test--initialize server)
+    (cl-letf (((symbol-function 'eglot-register-capability) #'ignore)
+              ((symbol-function 'eglot-unregister-capability) #'ignore))
+      (eglotx-test--register-watch server "alpha" "first" "**/*.el")
+      (eglotx-test--register-watch server "alpha" "last" "**/*.org")
+      (let* ((backend (eglotx-test--backend server "alpha"))
+             (table (eglotx--backend-registration-methods backend)))
+        (should-error
+         (eglotx-test--request-client
+          server "alpha" "client/unregisterCapability"
+          '(:unregisterations
+            [(:id "absent" :method "textDocument/formatting")
+             (:id "first" :method "workspace/didChangeWatchedFiles")
+             (:id "last" :method "textDocument/formatting")]))
+         :type 'jsonrpc-error)
+        (should (eq table (eglotx--backend-registration-methods backend)))
+        (should (= (hash-table-count table) 2)))
+      (eglotx--remove-file-watches server))))
+
+(ert-deftest eglotx-registration-replays-survive-a-lowered-retained-limit ()
+  (eglotx-test--with-server
+      (server (list (eglotx-test--spec "alpha") (eglotx-test--spec "beta-full")))
+    (eglotx-test--initialize server)
+    (cl-letf (((symbol-function 'eglot-register-capability) #'ignore)
+              ((symbol-function 'eglot-unregister-capability) #'ignore))
+      (eglotx-test--register-watch server "alpha" "first" "**/*.el")
+      (eglotx-test--register-watch server "beta-full" "second" "**/*.org")
+      (should (eglotx-test--wait-until
+               (lambda () (null (eglotx--work-head server))) 1.0))
+      (let ((eglotx-file-watcher-limit 1))
+        (eglotx-test--register-watch server "alpha" "first" "**/*.el")
+        (should-error (eglotx-test--register-watch server "alpha" "new" "**/*.md")
+                      :type 'jsonrpc-error)
+        (should-not (eglotx--work-head server)))
+      (eglotx--remove-file-watches server))))
+
+(ert-deftest eglotx-registration-staged-additions-share-the-facade-limit ()
+  (eglotx-test--with-server
+      (server (list (eglotx-test--spec "alpha") (eglotx-test--spec "beta-full")))
+    (eglotx-test--initialize server)
+    (cl-letf (((symbol-function 'eglot-register-capability) #'ignore)
+              ((symbol-function 'eglot-unregister-capability) #'ignore))
+      (eglotx-test--register-watch server "beta-full" "existing" "**/*.el")
+      (should (eglotx-test--wait-until
+               (lambda () (null (eglotx--work-head server))) 1.0))
+      (let* ((eglotx-file-watcher-limit 2)
+             (backend (eglotx-test--backend server "alpha"))
+             (table (eglotx--backend-registration-methods backend)))
+        (should-error
+         (eglotx-test--request-client
+          server "alpha" "client/registerCapability"
+          '(:registrations
+            [(:id "first" :method "workspace/didChangeWatchedFiles"
+              :registerOptions (:watchers [(:globPattern "**/*.org")]))
+             (:id "last" :method "workspace/didChangeWatchedFiles"
+              :registerOptions (:watchers [(:globPattern "**/*.md")]))]))
+         :type 'jsonrpc-error)
+        (should (eq table (eglotx--backend-registration-methods backend)))
+        (should (zerop (hash-table-count table)))
+        (should-not (eglotx--work-head server)))
+      (eglotx--remove-file-watches server))))
+
+(ert-deftest eglotx-work-queue-reentry-and-nonlocal-exit-preserve-timer-ownership ()
+  (eglotx-test--with-server
+      (server (list (eglotx-test--spec "alpha") (eglotx-test--spec "beta-full")))
+    (eglotx-test--initialize server)
+    (let (continued)
+      (setf (eglotx--work-timer server) 'paused)
+      (eglotx--enqueue-work
+       server (lambda ()
+                (should (eglotx--work-running-p server))
+                (eglotx--drain-work server)
+                (should (eglotx--work-running-p server))
+                (should-not continued)
+                (throw 'eglotx-test-escape nil)))
+      (eglotx--enqueue-work server (lambda () (setq continued t)))
+      (setf (eglotx--work-timer server) nil)
+      (catch 'eglotx-test-escape (eglotx--drain-work server))
+      (should-not (eglotx--work-running-p server))
+      (should (timerp (eglotx--work-timer server)))
+      (let ((timer (eglotx--work-timer server)))
+        (should (eglotx-test--wait-until (lambda () continued) 1.0))
+        (should-not (eglotx--work-timer server))
+        (should-not (memq timer timer-list))))))
+
+(ert-deftest eglotx-work-queue-survives-a-synchronous-continuation-throw ()
+  (eglotx-test--with-server
+      (server (list (eglotx-test--spec "alpha") (eglotx-test--spec "beta-full")))
+    (eglotx-test--initialize server)
+    (let ((deliver (symbol-function 'eglotx--deliver-message-now))
+          continued timer)
+      (cl-letf (((symbol-function 'eglotx--deliver-message-now)
+                 (lambda (facade message shutdown)
+                   (setq timer (eglotx--work-timer facade))
+                   (eglotx--enqueue-work facade (lambda () (setq continued t)))
+                   (funcall deliver facade message shutdown))))
+        (should (jsonrpc-request server :textDocument/hover
+                                 '(:textDocument (:uri "file:///eglotx-test/throw.el")
+                                   :position (:line 0 :character 0)) :timeout 3)))
+      (should (eglotx-test--wait-until (lambda () continued) 1.0))
+      (should-not (memq timer timer-list))
+      (should-not (eglotx--work-timer server))
+      (should-not (eglotx--work-running-p server)))))
+
 (ert-deftest eglotx-registration-replay-keeps-backend-ownership ()
   (eglotx-test--with-server
       (server (list (eglotx-test--spec "alpha") (eglotx-test--spec "beta-full")))

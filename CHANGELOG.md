@@ -8,6 +8,12 @@ All notable changes to Eglotx are documented in this file. The project uses
 
 ### Fixed
 
+- Yield during large document-symbol validation while preserving request
+  cancellation, deadlines, partial success, and backend payload identity.
+- Keep deferred queue continuations advancing during synchronous JSON-RPC
+  waits, and prevent timer reentry or retention after queue cleanup.
+- Avoid copying registration tables and counting retained watchers for
+  identical replays and absent-ID removals.
 - Preserve relative watched-file bases for Eglot 1.24, including external roots.
   Accept identical registration replays and absent-ID unregistration.
   Reject changed replay options and mismatched methods atomically.

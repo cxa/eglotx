@@ -139,9 +139,13 @@ live in [`architecture.md`](architecture.md); dated research is non-normative.
 - Document symbols use the highest-priority capable backend so the facade
   cannot mix the alternative `DocumentSymbol[]` and `SymbolInformation[]`
   result shapes.
-  Deferred finalization rejects malformed or reversed ranges and selections
+  Deferred validation rejects malformed or reversed ranges and selections
   outside their symbol range. It does not rewrite results or validate the
   complete symbol schema. Normal partial-success rules still apply.
+  Validation yields after at most `eglotx-symbol-chunk-size` traversal steps.
+  Cancellation and request deadlines remain active until validation completes.
+  At the deadline, unchecked backend results become timeout errors; already
+  validated results retain the normal partial-success behavior.
 - Completion preserves every item without cross-backend de-duplication, ORs
   `isIncomplete`, and negotiates only the `data` and `editRange` item defaults
   the facade can retain compactly. Shared defaults live once per backend
@@ -269,6 +273,9 @@ live in [`architecture.md`](architecture.md); dated research is non-normative.
 - Identical normalized registration replays are no-ops. Changed options
   require explicit unregistration. Absent-ID unregistration is a no-op;
   a mismatched active method is an error. Each batch is atomic.
+  Lowering the retained watcher limit does not invalidate an identical replay
+  that meets the per-request bounds. New registrations must fit the current
+  facade-wide limit.
 - Relative watcher bases remain intact. Eglot 1.24 applies its own
   `eglot-watch-files-outside-project-root` policy to external bases.
 
