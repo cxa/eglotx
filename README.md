@@ -1,6 +1,6 @@
 # Eglotx
 
-> [!NOTE]
+> [!WARNING]
 > This is an LLM-developed project.
 
 Eglotx is an in-process Language Server Protocol multiplexer for
