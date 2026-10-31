@@ -6,6 +6,8 @@ All notable changes to Eglotx are documented in this file. The project uses
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-10-31
+
 ### Fixed
 
 - Yield during large document-symbol validation while preserving request
@@ -32,10 +34,17 @@ All notable changes to Eglotx are documented in this file. The project uses
 
 ### Added
 
+- `eglotx-symbol-chunk-size` to bound symbol traversal per deferred job.
 - `eglotx-shutdown-timeout` to control the shared process-exit grace.
 - A [reliability checklist](docs/validation.md) for repeatable validation.
 - `eglotx-retry-file-watches` to retry registration immediately after restoring
   a project directory or resolving another watcher failure.
+
+### Changed
+
+- Disclose that Eglotx is an LLM-developed project in a README Warning.
+- Discover the latest patch of each supported Emacs major for CI, include
+  snapshot, and run the checks weekly as well as on pushes and pull requests.
 
 ## [0.1.5] - 2026-09-14
 
@@ -206,7 +215,8 @@ These fixes address [#4](https://github.com/cxa/eglotx/issues/4), following
   Tailwind-to-Corfu E2E targets.
 - CI checks on Emacs 29.4, 30.2, and the current snapshot build.
 
-[Unreleased]: https://github.com/cxa/eglotx/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/cxa/eglotx/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/cxa/eglotx/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/cxa/eglotx/releases/tag/v0.1.5
 [0.1.4]: https://github.com/cxa/eglotx/releases/tag/v0.1.4
 [0.1.3]: https://github.com/cxa/eglotx/releases/tag/v0.1.3
