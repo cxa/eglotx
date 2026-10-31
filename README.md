@@ -1,5 +1,8 @@
 # Eglotx
 
+> [!NOTE]
+> This is an LLM-developed project.
+
 Eglotx is an in-process Language Server Protocol multiplexer for
 [Eglot](https://www.gnu.org/software/emacs/manual/html_mono/eglot.html). It
 lets one Eglot session use several language servers without putting another
